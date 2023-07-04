@@ -28,6 +28,10 @@ func Update(s *inmemory.MemStorage) http.HandlerFunc {
 			return
 		}
 		metricName := urlPart[3]
+		if metricName == "" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 
 		if len(urlPart) < 5 {
 			w.WriteHeader(http.StatusBadRequest)

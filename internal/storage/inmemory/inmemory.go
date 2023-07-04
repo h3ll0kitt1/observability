@@ -13,10 +13,10 @@ func NewStorage() *MemStorage {
 }
 
 func (ms *MemStorage) Update(metricName string, metricValue any) {
-	switch metricValue.(type) {
+	switch mv := metricValue.(type) {
 	case int64:
-		ms.Counter[metricName] += metricValue.(int64)
+		ms.Counter[metricName] += mv
 	case float64:
-		ms.Gauge[metricName] = metricValue.(float64)
+		ms.Gauge[metricName] = mv
 	}
 }
