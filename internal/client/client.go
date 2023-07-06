@@ -80,9 +80,9 @@ func (m *metrics) updateRandomValue() {
 }
 
 func (m *metrics) sendToServer(addr string, reportInterval time.Duration) {
-	// for k, v := range m.mapGauge {
-	// 	go doRequestPOST(addr, k, v)
-	// }
+	for name, value := range m.mapGauge {
+		go doRequestPOST(addr, name, value)
+	}
 	go doRequestPOST(addr, "MyCounter", m.pollCount)
 	time.Sleep(reportInterval)
 }
