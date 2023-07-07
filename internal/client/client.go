@@ -11,24 +11,9 @@ import (
 	"time"
 )
 
-func Run(addr string) {
-	rand.Seed(time.Now().UnixNano())
-
-	pollInterval := 2 * time.Second
-	reportInterval := 10 * time.Second
-	metrics := newMetrics()
-
-	metrics.pollCount = 0
-
-	for {
-		metrics.updateSpecificMemStats()
-		metrics.updateRandomValue()
-		metrics.pollCount++
-
-		metrics.sendToServer(addr, reportInterval-pollInterval)
-
-		time.Sleep(pollInterval)
-	}
+type customClient struct {
+	httpClient *http.Client
+	addr       string
 }
 
 type metrics struct {
@@ -36,9 +21,54 @@ type metrics struct {
 	pollCount int64
 }
 
+func Run(addr string) {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	pollInterval := 2 * time.Second
+	reportInterval := 10 * time.Second
+	metrics := newMetrics()
+
+	metrics.pollCount = 0
+
+	client := newCustomClient(addr)
+
+	for {
+		metrics.updateSpecificMemStats()
+		metrics.updateRandomValue(rng)
+		metrics.pollCount++
+
+		metrics.sendToServer(client, reportInterval-pollInterval)
+
+		time.Sleep(pollInterval)
+	}
+}
+
 func newMetrics() metrics {
 	mapGauge := make(map[string]float64)
 	return metrics{mapGauge, 0}
+}
+
+func newCustomClient(addr string) customClient {
+	timeout := 3 * time.Second
+	httpClient := &http.Client{
+		Timeout: timeout,
+	}
+
+	req, _ := http.NewRequest(http.MethodPost, addr, http.NoBody)
+	req.Header.Set("Content-Type", "text/plain")
+
+	client := http.Client{}
+
+	for {
+		resp, err := client.Do(req)
+		if err == nil {
+			defer resp.Body.Close()
+			break
+		}
+		log.Printf("Error making POST request with path %s\n", addr)
+		time.Sleep(1 * time.Second)
+	}
+	return customClient{httpClient, addr}
 }
 
 func (m *metrics) updateSpecificMemStats() {
@@ -75,30 +105,34 @@ func (m *metrics) updateSpecificMemStats() {
 	m.mapGauge["TotalAlloc"] = float64(ms.TotalAlloc)
 }
 
-func (m *metrics) updateRandomValue() {
-	m.mapGauge["Random"] = rand.Float64() * 8
+func (m *metrics) updateRandomValue(rng *rand.Rand) {
+	value := rng.Intn(100)
+	m.mapGauge["Random"] = float64(value)
 }
 
-func (m *metrics) sendToServer(addr string, reportInterval time.Duration) {
+func (m *metrics) sendToServer(client customClient, reportInterval time.Duration) {
 	for name, value := range m.mapGauge {
-		go doRequestPOST(addr, name, value)
+		doRequestPOST(client, name, value)
 	}
-	go doRequestPOST(addr, "MyCounter", m.pollCount)
+	doRequestPOST(client, "MyCounter", m.pollCount)
 	time.Sleep(reportInterval)
 }
 
-func doRequestPOST(addr string, metricName string, metricValue any) {
+func doRequestPOST(client customClient, metricName string, metricValue any) {
 
-	requestURL := constructURL(addr, metricName, metricValue)
+	requestURL := constructURL(client.addr, metricName, metricValue)
 	req, err := http.NewRequest(http.MethodPost, requestURL, http.NoBody)
+	if err != nil {
+		log.Fatalf("Error constructing POST request with path %s\n", requestURL)
+	}
 	req.Header.Set("Content-Type", "text/plain")
 
-	httpClient := &http.Client{}
-
-	_, err = httpClient.Do(req)
+	var resp *http.Response
+	resp, err = client.httpClient.Do(req)
 	if err != nil {
-		log.Fatalf("Error making POST request wit path %s\n", requestURL)
+		log.Printf("Error making POST request with path %s\n", requestURL)
 	}
+	defer resp.Body.Close()
 	log.Printf("Request SEND: %s\n", requestURL)
 }
 
