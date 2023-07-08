@@ -49,7 +49,7 @@ func newMetrics() metrics {
 }
 
 func newCustomClient(addr string) customClient {
-	timeout := 3 * time.Second
+	timeout := 5 * time.Second
 	httpClient := &http.Client{
 		Timeout: timeout,
 	}
@@ -66,7 +66,7 @@ func newCustomClient(addr string) customClient {
 			break
 		}
 		log.Printf("Error making POST request with path %s\n", addr)
-		time.Sleep(1 * time.Second)
+		time.Sleep(5 * time.Second)
 	}
 	return customClient{httpClient, addr}
 }
