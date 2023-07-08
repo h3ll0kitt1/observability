@@ -7,13 +7,13 @@ import (
 	"time"
 )
 
-func TestnewMetrics(t *testing.T) {
+// func TestnewMetrics(t *testing.T) {
 
-}
+// }
 
-func TestnewCustomClient(t *testing.T) {
+// func TestnewCustomClient(t *testing.T) {
 
-}
+// }
 
 func TestMetrics_updateSpecificMemStats(t *testing.T) {
 	mapGauge := make(map[string]float64)
@@ -38,9 +38,9 @@ func TestMetircs_updateRandomValue(t *testing.T) {
 	}
 }
 
-func TestdoRequestPOST(t *testing.T) {
+// func TestDoRequestPOST(t *testing.T) {
 
-}
+// }
 
 func TestConstructURL(t *testing.T) {
 	tests := []struct {
