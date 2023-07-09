@@ -81,7 +81,7 @@ func TestMemStorage_GetList(t *testing.T) {
 	}{
 		{
 			name: "list all",
-			want: "testCounter : 1\ntestGauge : 1.000000\n",
+			want: "testCounter : 1\ntestGauge : 1\n",
 		},
 	}
 
@@ -112,7 +112,7 @@ func TestMemStorage_GetValue(t *testing.T) {
 			name:       "get existing gauge",
 			mtype:      "gauge",
 			metricName: "testGauge",
-			wantValue:  "1.000000",
+			wantValue:  "1",
 			wantStatus: true,
 		},
 		{

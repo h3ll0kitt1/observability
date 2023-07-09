@@ -2,6 +2,7 @@ package inmemory
 
 import (
 	"fmt"
+	"strconv"
 )
 
 type MemStorage struct {
@@ -31,7 +32,8 @@ func (ms MemStorage) GetList() string {
 		list += name + fmt.Sprintf(" : %d\n", value)
 	}
 	for name, value := range ms.Gauge {
-		list += name + fmt.Sprintf(" : %f\n", value)
+		valueStr := strconv.FormatFloat(value, 'f', -1, 64)
+		list += name + " : " + valueStr + "\n"
 	}
 	return list
 }
@@ -43,7 +45,8 @@ func (ms MemStorage) GetValue(mtype, name string) (string, bool) {
 		return fmt.Sprintf("%d", value), ok
 	case "gauge":
 		value, ok := ms.Gauge[name]
-		return fmt.Sprintf("%f", value), ok
+		valueStr := strconv.FormatFloat(value, 'f', -1, 64)
+		return valueStr, ok
 	default:
 		return "-1", false
 	}

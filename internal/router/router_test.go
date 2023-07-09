@@ -44,9 +44,9 @@ func TestRouterGet(t *testing.T) {
 		status int
 	}{
 		// OK
-		{"/", "testCounter : 2\ntestGauge : 2.000000\n", http.StatusOK},
+		{"/", "testCounter : 2\ntestGauge : 2\n", http.StatusOK},
 		{"/value/counter/testCounter", "2", http.StatusOK},
-		{"/value/gauge/testGauge", "2.000000", http.StatusOK},
+		{"/value/gauge/testGauge", "2", http.StatusOK},
 
 		// WRONG
 		{"/value/counter/unknownCounter", "", http.StatusNotFound},
@@ -55,6 +55,7 @@ func TestRouterGet(t *testing.T) {
 
 	for _, v := range testTable {
 		resp, get := testRequest(t, ts, "GET", v.url)
+		defer resp.Body.Close()
 		assert.Equal(t, v.status, resp.StatusCode)
 		assert.Equal(t, v.want, get)
 	}
@@ -84,6 +85,7 @@ func TestRouterPost(t *testing.T) {
 
 	for _, v := range testTable {
 		resp, _ := testRequest(t, ts, "POST", v.url)
+		defer resp.Body.Close()
 		assert.Equal(t, v.status, resp.StatusCode)
 	}
 
