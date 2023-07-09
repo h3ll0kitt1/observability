@@ -1,22 +1,26 @@
 package main
 
 import (
-	"net/http"
+	"log"
 
-	"github.com/h3ll0kitt1/observability/internal/handlers"
+	"github.com/go-chi/chi/v5"
+
+	"github.com/h3ll0kitt1/observability/internal/router"
+	"github.com/h3ll0kitt1/observability/internal/server"
 	"github.com/h3ll0kitt1/observability/internal/storage/inmemory"
 )
 
 func main() {
 
-	storage := inmemory.NewStorage()
+	s := inmemory.NewStorage()
+	r := chi.NewRouter()
 
-	mux := http.NewServeMux()
-	mux.HandleFunc(`/update/`, handlers.Update(storage))
-	mux.HandleFunc(`/`, handlers.UpdateNotSpecified)
+	endpoint := ":8080"
 
-	err := http.ListenAndServe(`:8080`, mux)
-	if err != nil {
-		panic(err)
+	router.SetRouters(s, r)
+
+	if err := server.Run(endpoint, r); err != nil {
+		log.Fatal(err)
+		return
 	}
 }
