@@ -15,7 +15,7 @@ var (
 
 func main() {
 
-	flag.StringVar(&flagRunAddr, "a", ":8080", "address and port to run client")
+	flag.StringVar(&flagRunAddr, "a", "http://localhost:8080", "address and port to run client")
 	flag.IntVar(&flagReportInterval, "r", 10, "number of seconds to report to server")
 	flag.IntVar(&flagPollInterval, "p", 2, "number of seconds to update metrics")
 	flag.Parse()
