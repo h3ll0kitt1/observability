@@ -15,7 +15,7 @@ var flagRunAddr string
 
 func main() {
 
-	flag.StringVar(&flagRunAddr, "a", ":8080", "address and port to run server")
+	flag.StringVar(&flagRunAddr, "a", "localhost:8080", "address and port to run server")
 	flag.Parse()
 
 	s := inmemory.NewStorage()
