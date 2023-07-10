@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
+
+	"github.com/h3ll0kitt1/observability/internal/config"
 )
 
 type customClient struct {
@@ -19,29 +21,29 @@ type metrics struct {
 	pollCount  int64
 }
 
-func Run(endpoint string, reportInterval, pollInterval time.Duration) {
+func Run(cfg *config.ClientConfig) {
 
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	client := newCustomClient(endpoint)
+	client := newCustomClient(cfg)
 	metrics := newMetrics()
 
 	for {
 		metrics.update(rng)
-		metrics.sendToServer(client, reportInterval-pollInterval)
-		time.Sleep(pollInterval)
+		metrics.sendToServer(client, cfg.ReportInterval-cfg.PollInterval)
+		time.Sleep(cfg.PollInterval)
 	}
 }
 
-func newCustomClient(endpoint string) customClient {
+func newCustomClient(cfg *config.ClientConfig) customClient {
 	httpClient := resty.New()
 
 	httpClient.
-		SetRetryCount(3).
-		SetRetryWaitTime(3 * time.Second).
-		SetRetryMaxWaitTime(90 * time.Second)
+		SetRetryCount(cfg.RetryCount).
+		SetRetryWaitTime(cfg.RetryWaitTime).
+		SetRetryMaxWaitTime(cfg.RetryMaxWaitTime)
 
-	return customClient{httpClient: httpClient, endpoint: endpoint}
+	return customClient{httpClient: httpClient, endpoint: cfg.Endpoint}
 }
 
 func (m *metrics) sendToServer(client customClient, reportInterval time.Duration) {
