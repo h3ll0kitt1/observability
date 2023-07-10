@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 
 	"github.com/go-chi/chi/v5"
@@ -10,16 +11,19 @@ import (
 	"github.com/h3ll0kitt1/observability/internal/storage/inmemory"
 )
 
+var flagRunAddr string
+
 func main() {
+
+	flag.StringVar(&flagRunAddr, "a", ":8080", "address and port to run server")
+	flag.Parse()
 
 	s := inmemory.NewStorage()
 	r := chi.NewRouter()
 
-	endpoint := ":8080"
-
 	router.SetRouters(s, r)
 
-	if err := server.Run(endpoint, r); err != nil {
+	if err := server.Run(flagRunAddr, r); err != nil {
 		log.Fatal(err)
 		return
 	}
