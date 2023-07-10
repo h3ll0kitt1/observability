@@ -123,7 +123,7 @@ func convertToString(value any) string {
 }
 
 func (m *metrics) updateRandomValue(rng *rand.Rand) {
-	value := rng.Intn(100)
+	value := float64(rng.Intn(100))
 	m.mapMetrics["gauge"]["Random"] = convertToString(value)
 }
 

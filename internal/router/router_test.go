@@ -38,7 +38,7 @@ func TestRouterGet(t *testing.T) {
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	var testTable = []struct {
+	var tests = []struct {
 		url    string
 		want   string
 		status int
@@ -53,11 +53,11 @@ func TestRouterGet(t *testing.T) {
 		{"/value/gauge/unknownGauge", "", http.StatusNotFound},
 	}
 
-	for _, v := range testTable {
-		resp, get := testRequest(t, ts, "GET", v.url)
+	for _, tt := range tests {
+		resp, get := testRequest(t, ts, "GET", tt.url)
 		defer resp.Body.Close()
-		assert.Equal(t, v.status, resp.StatusCode)
-		assert.Equal(t, v.want, get)
+		assert.Equal(t, tt.status, resp.StatusCode)
+		assert.Equal(t, tt.want, get)
 	}
 
 }
@@ -69,7 +69,7 @@ func TestRouterPost(t *testing.T) {
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	var testTable = []struct {
+	var tests = []struct {
 		url    string
 		status int
 	}{
@@ -83,10 +83,10 @@ func TestRouterPost(t *testing.T) {
 		{"/update/wrongtype/testCounter/100", http.StatusBadRequest},
 	}
 
-	for _, v := range testTable {
-		resp, _ := testRequest(t, ts, "POST", v.url)
+	for _, tt := range tests {
+		resp, _ := testRequest(t, ts, "POST", tt.url)
 		defer resp.Body.Close()
-		assert.Equal(t, v.status, resp.StatusCode)
+		assert.Equal(t, tt.status, resp.StatusCode)
 	}
 
 }
