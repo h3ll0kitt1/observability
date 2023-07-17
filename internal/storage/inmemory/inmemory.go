@@ -7,8 +7,8 @@ import (
 )
 
 type MemStorage struct {
-	Counter MemCounter
-	Gauge   MemGauge
+	Counter *MemCounter
+	Gauge   *MemGauge
 }
 
 type MemCounter struct {
@@ -30,16 +30,16 @@ func NewStorage() *MemStorage {
 	}
 }
 
-func NewMemCounter() MemCounter {
+func NewMemCounter() *MemCounter {
 	var mc MemCounter
 	mc.mem = make(map[string]int64)
-	return mc
+	return &mc
 }
 
-func NewMemGauge() MemGauge {
+func NewMemGauge() *MemGauge {
 	var mg MemGauge
 	mg.mem = make(map[string]float64)
-	return mg
+	return &mg
 }
 
 func (ms *MemStorage) Update(metricName string, metricValue any) {
@@ -55,7 +55,7 @@ func (ms *MemStorage) Update(metricName string, metricValue any) {
 	}
 }
 
-func (ms MemStorage) GetList() string {
+func (ms *MemStorage) GetList() string {
 	list := ""
 	ms.Counter.Lock()
 	for name, value := range ms.Counter.mem {
@@ -72,7 +72,7 @@ func (ms MemStorage) GetList() string {
 	return list
 }
 
-func (ms MemStorage) GetValue(mtype, name string) (string, bool) {
+func (ms *MemStorage) GetValue(mtype, name string) (string, bool) {
 	switch mtype {
 	case "counter":
 		value, ok := ms.Counter.mem[name]
