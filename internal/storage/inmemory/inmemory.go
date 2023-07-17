@@ -3,48 +3,82 @@ package inmemory
 import (
 	"fmt"
 	"strconv"
+	"sync"
 )
 
 type MemStorage struct {
-	Counter map[string]int64
-	Gauge   map[string]float64
+	Counter MemCounter
+	Gauge   MemGauge
+}
+
+type MemCounter struct {
+	mem map[string]int64
+	sync.Mutex
+}
+
+type MemGauge struct {
+	mem map[string]float64
+	sync.Mutex
 }
 
 func NewStorage() *MemStorage {
-	var ms MemStorage
-	ms.Counter = make(map[string]int64)
-	ms.Gauge = make(map[string]float64)
-	return &ms
+	MemCounter := NewMemCounter()
+	MemGauge := NewMemGauge()
+	return &MemStorage{
+		Counter: MemCounter,
+		Gauge:   MemGauge,
+	}
+}
+
+func NewMemCounter() MemCounter {
+	var mc MemCounter
+	mc.mem = make(map[string]int64)
+	return mc
+}
+
+func NewMemGauge() MemGauge {
+	var mg MemGauge
+	mg.mem = make(map[string]float64)
+	return mg
 }
 
 func (ms *MemStorage) Update(metricName string, metricValue any) {
 	switch mv := metricValue.(type) {
 	case int64:
-		ms.Counter[metricName] += mv
+		ms.Counter.Lock()
+		ms.Counter.mem[metricName] += mv
+		ms.Counter.Unlock()
 	case float64:
-		ms.Gauge[metricName] = mv
+		ms.Gauge.Lock()
+		ms.Gauge.mem[metricName] = mv
+		ms.Gauge.Unlock()
 	}
 }
 
 func (ms MemStorage) GetList() string {
 	list := ""
-	for name, value := range ms.Counter {
+	ms.Counter.Lock()
+	for name, value := range ms.Counter.mem {
 		list += name + fmt.Sprintf(" : %d\n", value)
 	}
-	for name, value := range ms.Gauge {
+	ms.Counter.Unlock()
+
+	ms.Gauge.Lock()
+	for name, value := range ms.Gauge.mem {
 		valueStr := strconv.FormatFloat(value, 'f', -1, 64)
 		list += name + " : " + valueStr + "\n"
 	}
+	ms.Gauge.Unlock()
 	return list
 }
 
 func (ms MemStorage) GetValue(mtype, name string) (string, bool) {
 	switch mtype {
 	case "counter":
-		value, ok := ms.Counter[name]
+		value, ok := ms.Counter.mem[name]
 		return fmt.Sprintf("%d", value), ok
 	case "gauge":
-		value, ok := ms.Gauge[name]
+		value, ok := ms.Gauge.mem[name]
 		valueStr := strconv.FormatFloat(value, 'f', -1, 64)
 		return valueStr, ok
 	default:

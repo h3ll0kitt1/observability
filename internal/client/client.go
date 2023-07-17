@@ -25,13 +25,19 @@ func Run(cfg *config.ClientConfig) {
 
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
+	pollTicker := time.NewTicker(cfg.PollInterval)
+	sendTicker := time.NewTicker(cfg.ReportInterval)
+
 	client := newCustomClient(cfg)
 	metrics := newMetrics()
 
 	for {
-		metrics.update(rng)
-		metrics.sendToServer(client, cfg.ReportInterval-cfg.PollInterval)
-		time.Sleep(cfg.PollInterval)
+		select {
+		case <-pollTicker.C:
+			metrics.update(rng)
+		case <-sendTicker.C:
+			metrics.sendToServer(client)
+		}
 	}
 }
 
@@ -46,13 +52,12 @@ func newCustomClient(cfg *config.ClientConfig) customClient {
 	return customClient{httpClient: httpClient, endpoint: cfg.Endpoint}
 }
 
-func (m *metrics) sendToServer(client customClient, reportInterval time.Duration) {
+func (m *metrics) sendToServer(client customClient) {
 	for mtype, mmap := range m.mapMetrics {
 		for mname, mvalue := range mmap {
 			client.doRequestPOST(mtype, mname, mvalue)
 		}
 	}
-	time.Sleep(reportInterval)
 }
 
 func (c customClient) doRequestPOST(mtype, mname, mvalue string) {
@@ -65,9 +70,10 @@ func (c customClient) doRequestPOST(mtype, mname, mvalue string) {
 }
 
 func newMetrics() metrics {
-	mapMetrics := make(map[string]map[string]string)
-	mapMetrics["gauge"] = make(map[string]string)
-	mapMetrics["counter"] = make(map[string]string)
+	mapMetrics := map[string]map[string]string{
+		"counter": make(map[string]string),
+		"gauge":   make(map[string]string),
+	}
 	return metrics{mapMetrics: mapMetrics, pollCount: 0}
 }
 
