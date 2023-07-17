@@ -52,19 +52,19 @@ func TestMemStorage_Update(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			ms := NewStorage()
-			ms.Counter["testCounter"] = int64(1)
-			ms.Gauge["testGauge"] = float64(1.0)
+			ms.Counter.mem["testCounter"] = int64(1)
+			ms.Gauge.mem["testGauge"] = float64(1.0)
 
 			ms.Update(tt.metricName, tt.metricValue)
 
 			if tt.metricType == "counter" {
-				if got, ok := ms.Counter[tt.metricName]; got != tt.wantValue && ok != tt.wantStatus {
+				if got, ok := ms.Counter.mem[tt.metricName]; got != tt.wantValue && ok != tt.wantStatus {
 					t.Errorf("MemStorage_Update() = %v, want %v , wantStatus %v", got, tt.wantValue, tt.wantStatus)
 				}
 			}
 
 			if tt.metricType == "gauge" {
-				if got, ok := ms.Gauge[tt.metricName]; got != tt.wantValue && ok != tt.wantStatus {
+				if got, ok := ms.Gauge.mem[tt.metricName]; got != tt.wantValue && ok != tt.wantStatus {
 					t.Errorf("Update() = %v, want %v , wantStatus %v", got, tt.wantValue, tt.wantStatus)
 				}
 			}
@@ -89,8 +89,8 @@ func TestMemStorage_GetList(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			ms := NewStorage()
-			ms.Counter["testCounter"] = int64(1)
-			ms.Gauge["testGauge"] = float64(1.0)
+			ms.Counter.mem["testCounter"] = int64(1)
+			ms.Gauge.mem["testGauge"] = float64(1.0)
 
 			if got := ms.GetList(); got != tt.want {
 				t.Errorf("GetList() = %v, want %v", got, tt.want)
@@ -142,8 +142,8 @@ func TestMemStorage_GetValue(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			ms := NewStorage()
-			ms.Counter["testCounter"] = int64(1)
-			ms.Gauge["testGauge"] = float64(1.0)
+			ms.Counter.mem["testCounter"] = int64(1)
+			ms.Gauge.mem["testGauge"] = float64(1.0)
 
 			if gotValue, gotStatus := ms.GetValue(tt.mtype, tt.metricName); gotValue != tt.wantValue &&
 				gotStatus != tt.wantStatus {
