@@ -1,4 +1,4 @@
-package router
+package main
 
 import (
 	"io"
@@ -29,13 +29,19 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string) (*http.
 
 func TestRouterGet(t *testing.T) {
 	s := inmemory.NewStorage()
+	r := chi.NewRouter()
+
+	app := &application{
+		storage: s,
+		router:  r,
+	}
 
 	s.Update("testGauge", float64(2.0))
 	s.Update("testCounter", int64(2))
 
-	r := chi.NewRouter()
-	SetRouters(s, r)
-	ts := httptest.NewServer(r)
+	app.setRouters()
+
+	ts := httptest.NewServer(app.router)
 	defer ts.Close()
 
 	var tests = []struct {
@@ -59,13 +65,19 @@ func TestRouterGet(t *testing.T) {
 		assert.Equal(t, tt.status, resp.StatusCode)
 		assert.Equal(t, tt.want, get)
 	}
-
 }
 
 func TestRouterPost(t *testing.T) {
 	s := inmemory.NewStorage()
 	r := chi.NewRouter()
-	SetRouters(s, r)
+
+	app := &application{
+		storage: s,
+		router:  r,
+	}
+
+	app.setRouters()
+
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
@@ -88,5 +100,4 @@ func TestRouterPost(t *testing.T) {
 		defer resp.Body.Close()
 		assert.Equal(t, tt.status, resp.StatusCode)
 	}
-
 }
