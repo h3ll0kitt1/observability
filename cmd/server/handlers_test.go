@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/h3ll0kitt1/observability/internal/logger"
 	"github.com/h3ll0kitt1/observability/internal/storage/inmemory"
 )
 
@@ -30,10 +31,12 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string) (*http.
 func TestRouterGet(t *testing.T) {
 	s := inmemory.NewStorage()
 	r := chi.NewRouter()
+	l := logger.NewLogger()
 
 	app := &application{
 		storage: s,
 		router:  r,
+		logger:  l,
 	}
 
 	s.Update("testGauge", float64(2.0))
@@ -71,9 +74,12 @@ func TestRouterPost(t *testing.T) {
 	s := inmemory.NewStorage()
 	r := chi.NewRouter()
 
+	l := logger.NewLogger()
+
 	app := &application{
 		storage: s,
 		router:  r,
+		logger:  l,
 	}
 
 	app.setRouters()
