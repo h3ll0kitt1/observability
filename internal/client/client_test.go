@@ -21,7 +21,7 @@ func TestMetrics_updateRandomValue(t *testing.T) {
 	m.updateRandomValue(rng)
 
 	want := "81.000000"
-	if got := m.mapMetrics["gauge"]["Random"]; got != want {
+	if got := m.mapMetrics["gauge"]["RandomValue"]; got != want {
 		t.Errorf("updateRandomValue() = %v, want %v", got, want)
 	}
 }
@@ -31,7 +31,7 @@ func TestMetrics_updateCounterValue(t *testing.T) {
 	m.updateCounterValue()
 
 	want := "1"
-	if got := m.mapMetrics["counter"]["Counter"]; got != want {
+	if got := m.mapMetrics["counter"]["PollCount"]; got != want {
 		t.Errorf("updateCounterValue() = %v, want %v", got, want)
 	}
 }
