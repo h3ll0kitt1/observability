@@ -2,13 +2,16 @@ package client
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 
 	"github.com/h3ll0kitt1/observability/internal/config"
+	"github.com/h3ll0kitt1/observability/internal/models"
 )
 
 type customClient struct {
@@ -54,19 +57,26 @@ func newCustomClient(cfg *config.ClientConfig) customClient {
 
 func (m *metrics) sendToServer(client customClient) {
 	for mtype, mmap := range m.mapMetrics {
-		for mname, mvalue := range mmap {
-			client.doRequestPOST(mtype, mname, mvalue)
+		for name, value := range mmap {
+			client.doRequestPOST(mtype, name, value)
 		}
 	}
 }
 
-func (c customClient) doRequestPOST(mtype, mname, mvalue string) {
-	c.httpClient.R().SetPathParams(map[string]string{
-		"type":  mtype,
-		"name":  mname,
-		"value": mvalue,
-	}).
-		Post(c.endpoint + "/update/{type}/{name}/{value}")
+func (c customClient) doRequestPOST(mtype, name, value string) {
+	metric, err := constructMetric(mtype, name, value)
+	if err != nil {
+		log.Fatal("Error constructing metric: ", err)
+	}
+	metricJSON, err := metric.Convert2JSON()
+	if err != nil {
+		log.Fatal("Error converting metric to JSON: ", err)
+	}
+
+	c.httpClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetBody(metricJSON).
+		Post(c.endpoint + "/update/")
 }
 
 func newMetrics() metrics {
@@ -117,9 +127,33 @@ func (m *metrics) updateSpecificMemStats() {
 	m.mapMetrics["gauge"]["TotalAlloc"] = convertToString(ms.TotalAlloc)
 }
 
+func constructMetric(mtype, name, value string) (*models.Metrics, error) {
+	var metric models.Metrics
+	metric.ID = name
+	metric.MType = mtype
+
+	switch mtype {
+	case "counter":
+		v, err := convertToInt64(value)
+		if err != nil {
+			return nil, err
+		}
+		metric.Delta = &v
+	case "gauge":
+		v, err := convertToFloat64(value)
+		if err != nil {
+			return nil, err
+		}
+		metric.Value = &v
+	}
+	return &metric, nil
+}
+
 func convertToString(value any) string {
 	res := ""
 	switch v := value.(type) {
+	case uint32:
+		res = fmt.Sprintf("%f", float64(v))
 	case uint64:
 		res = fmt.Sprintf("%f", float64(v))
 	case float64:
@@ -128,12 +162,28 @@ func convertToString(value any) string {
 	return res
 }
 
+func convertToInt64(s string) (int64, error) {
+	value, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return -1, err
+	}
+	return value, nil
+}
+
+func convertToFloat64(s string) (float64, error) {
+	value, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return -1, err
+	}
+	return value, nil
+}
+
 func (m *metrics) updateRandomValue(rng *rand.Rand) {
 	value := float64(rng.Intn(100))
-	m.mapMetrics["gauge"]["Random"] = convertToString(value)
+	m.mapMetrics["gauge"]["RandomValue"] = convertToString(value)
 }
 
 func (m *metrics) updateCounterValue() {
 	m.pollCount++
-	m.mapMetrics["counter"]["Counter"] = fmt.Sprintf("%d", m.pollCount)
+	m.mapMetrics["counter"]["PollCount"] = fmt.Sprintf("%d", m.pollCount)
 }

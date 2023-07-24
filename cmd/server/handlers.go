@@ -1,85 +1,83 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/h3ll0kitt1/observability/internal/models"
 )
 
-func (app *application) getAll(w http.ResponseWriter, r *http.Request) {
-	list := app.storage.GetList()
-	w.Header().Set("Content-Type", "text/html")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(list))
-}
+func (app *application) getValue(w http.ResponseWriter, r *http.Request) {
 
-func (app *application) getCounter(w http.ResponseWriter, r *http.Request) {
-	name := chi.URLParam(r, "name")
+	var metric models.Metrics
 
-	value, ok := app.storage.GetValue("counter", name)
+	err := json.NewDecoder(r.Body).Decode(&metric)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	value, ok := app.storage.GetValue(metric.MType, metric.ID)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/plain")
+	if metric.MType == "counter" {
+		v, ok := validateStringIsInt64(value)
+		if ok {
+			metric.Delta = &v
+		}
+	}
+
+	if metric.MType == "gauge" {
+		v, ok := validateStringIsFloat64(value)
+		if ok {
+			metric.Value = &v
+		}
+	}
+
+	metricJSON, err := metric.Convert2JSON()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(value))
+	w.Write([]byte(metricJSON))
 }
 
-func (app *application) getGauge(w http.ResponseWriter, r *http.Request) {
-	name := chi.URLParam(r, "name")
+func (app *application) updateValue(w http.ResponseWriter, r *http.Request) {
 
-	value, ok := app.storage.GetValue("gauge", name)
-	if !ok {
-		w.WriteHeader(http.StatusNotFound)
+	var metric models.Metrics
+
+	err := json.NewDecoder(r.Body).Decode(&metric)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(value))
-}
+	if metric.Delta != nil {
+		app.storage.Update(metric.ID, *(metric.Delta))
+	}
 
-func errorUnknown(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotFound)
+	if metric.Value != nil {
+		app.storage.Update(metric.ID, *(metric.Value))
+	}
+
+	metricJSON, err := metric.Convert2JSON()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(metricJSON))
 }
 
 func errorNotFound(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusBadRequest)
-}
-
-func errorNoName(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotFound)
-}
-
-func (app *application) updateCounter(w http.ResponseWriter, r *http.Request) {
-
-	name := chi.URLParam(r, "name")
-	valueStr := chi.URLParam(r, "value")
-
-	value, ok := validateStringIsInt64(valueStr)
-	if !ok {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	app.storage.Update(name, value)
-	w.WriteHeader(http.StatusOK)
-}
-
-func (app *application) updateGauge(w http.ResponseWriter, r *http.Request) {
-
-	name := chi.URLParam(r, "name")
-	valueStr := chi.URLParam(r, "value")
-
-	value, ok := validateStringIsFloat64(valueStr)
-	if !ok {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	app.storage.Update(name, value)
-	w.WriteHeader(http.StatusOK)
 }
 
 func validateStringIsInt64(s string) (int64, bool) {
