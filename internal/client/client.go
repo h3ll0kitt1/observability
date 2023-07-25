@@ -1,6 +1,8 @@
 package client
 
 import (
+	"bytes"
+	"compress/gzip"
 	"fmt"
 	"log"
 	"math/rand"
@@ -64,18 +66,29 @@ func (m *metrics) sendToServer(client customClient) {
 }
 
 func (c customClient) doRequestPOST(mtype, name, value string) {
+
+	// мб сначала конверт в нужные типы, а затем metric := metric.New(...)
+
 	metric, err := constructMetric(mtype, name, value)
 	if err != nil {
 		log.Fatal("Error constructing metric: ", err)
 	}
+
 	metricJSON, err := metric.Convert2JSON()
 	if err != nil {
 		log.Fatal("Error converting metric to JSON: ", err)
 	}
 
+	gzipData, err := GzipCompress(metricJSON)
+	if err != nil {
+		log.Fatal("Error compressing JSON to GZIP: ", err)
+	}
+
 	c.httpClient.R().
 		SetHeader("Content-Type", "application/json").
-		SetBody(metricJSON).
+		SetHeader("Content-Encoding", "gzip").
+		SetHeader("Accept-Encoding", "gzip").
+		SetBody(gzipData).
 		Post(c.endpoint + "/update/")
 }
 
@@ -186,4 +199,21 @@ func (m *metrics) updateRandomValue(rng *rand.Rand) {
 func (m *metrics) updateCounterValue() {
 	m.pollCount++
 	m.mapMetrics["counter"]["PollCount"] = fmt.Sprintf("%d", m.pollCount)
+}
+
+func GzipCompress(data []byte) ([]byte, error) {
+	var buf bytes.Buffer
+
+	w := gzip.NewWriter(&buf)
+	_, err := w.Write(data)
+	if err != nil {
+		return nil, err
+	}
+
+	err = w.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }
