@@ -3,6 +3,7 @@ package client
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
@@ -67,19 +68,18 @@ func (m *metrics) sendToServer(client customClient) {
 
 func (c customClient) doRequestPOST(mtype, name, value string) {
 
-	// мб сначала конверт в нужные типы, а затем metric := metric.New(...)
-
-	metric, err := constructMetric(mtype, name, value)
+	mvalue, err := convertWithType(mtype, value)
 	if err != nil {
-		log.Fatal("Error constructing metric: ", err)
+		log.Fatal("Type and recieved value mismatch: ", err)
 	}
+	metric := models.NewMetric(mtype, name, mvalue)
 
-	metricJSON, err := metric.Convert2JSON()
+	jsonData, err := json.Marshal(metric)
 	if err != nil {
 		log.Fatal("Error converting metric to JSON: ", err)
 	}
 
-	gzipData, err := GzipCompress(metricJSON)
+	gzipData, err := GzipCompress(jsonData)
 	if err != nil {
 		log.Fatal("Error compressing JSON to GZIP: ", err)
 	}
@@ -140,26 +140,26 @@ func (m *metrics) updateSpecificMemStats() {
 	m.mapMetrics["gauge"]["TotalAlloc"] = convertToString(ms.TotalAlloc)
 }
 
-func constructMetric(mtype, name, value string) (*models.Metrics, error) {
-	var metric models.Metrics
-	metric.ID = name
-	metric.MType = mtype
+func convertWithType(mtype, value string) (any, error) {
 
 	switch mtype {
+
 	case "counter":
 		v, err := convertToInt64(value)
 		if err != nil {
 			return nil, err
 		}
-		metric.Delta = &v
+		return v, nil
+
 	case "gauge":
 		v, err := convertToFloat64(value)
 		if err != nil {
 			return nil, err
 		}
-		metric.Value = &v
+		return v, nil
 	}
-	return &metric, nil
+
+	return -1, nil
 }
 
 func convertToString(value any) string {

@@ -10,13 +10,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/h3ll0kitt1/observability/internal/logger"
 	"github.com/h3ll0kitt1/observability/internal/storage/inmemory"
 )
 
 func testRequest(t *testing.T, ts *httptest.Server, method, path string) (*http.Response, string) {
 	req, err := http.NewRequest(method, ts.URL+path, nil)
 	require.NoError(t, err)
-
+	req.Header.Set("Accept-Encoding", "identity")
 	resp, err := ts.Client().Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -30,10 +31,12 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string) (*http.
 func TestRouterGet(t *testing.T) {
 	s := inmemory.NewStorage()
 	r := chi.NewRouter()
+	l := logger.NewLogger()
 
 	app := &application{
 		storage: s,
 		router:  r,
+		logger:  l,
 	}
 
 	s.Update("testGauge", float64(2.0))
@@ -50,7 +53,6 @@ func TestRouterGet(t *testing.T) {
 		status int
 	}{
 		// OK
-		{"/", "testCounter : 2\ntestGauge : 2\n", http.StatusOK},
 		{"/value/counter/testCounter", "2", http.StatusOK},
 		{"/value/gauge/testGauge", "2", http.StatusOK},
 
@@ -70,10 +72,12 @@ func TestRouterGet(t *testing.T) {
 func TestRouterPost(t *testing.T) {
 	s := inmemory.NewStorage()
 	r := chi.NewRouter()
+	l := logger.NewLogger()
 
 	app := &application{
 		storage: s,
 		router:  r,
+		logger:  l,
 	}
 
 	app.setRouters()

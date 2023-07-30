@@ -47,14 +47,14 @@ func (app *application) getValue(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	metricJSON, err := metric.Convert2JSON()
+	jsonData, err := json.Marshal(metric)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(metricJSON))
+	w.Write([]byte(jsonData))
 }
 
 func (app *application) getCounter(w http.ResponseWriter, r *http.Request) {
@@ -103,14 +103,14 @@ func (app *application) updateValue(w http.ResponseWriter, r *http.Request) {
 		app.storage.Update(metric.ID, *(metric.Value))
 	}
 
-	metricJSON, err := metric.Convert2JSON()
+	jsonData, err := json.Marshal(metric)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(metricJSON))
+	w.Write([]byte(jsonData))
 }
 
 func (app *application) updateCounter(w http.ResponseWriter, r *http.Request) {

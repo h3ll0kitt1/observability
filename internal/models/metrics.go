@@ -1,9 +1,5 @@
 package models
 
-import (
-	"encoding/json"
-)
-
 type Metrics struct {
 	ID    string   `json:"id"`
 	MType string   `json:"type"`
@@ -11,10 +7,20 @@ type Metrics struct {
 	Value *float64 `json:"value,omitempty"`
 }
 
-func (m Metrics) Convert2JSON() ([]byte, error) {
-	res, err := json.Marshal(m)
-	if err != nil {
-		return nil, err
+func NewMetric(mtype string, name string, mvalue any) Metrics {
+	var m Metrics
+	m.ID = name
+	m.MType = mtype
+
+	if mtype == "counter" {
+		v := mvalue.(int64)
+		m.Delta = &v
 	}
-	return res, nil
+
+	if mtype == "gauge" {
+		v := mvalue.(float64)
+		m.Value = &v
+	}
+
+	return m
 }
