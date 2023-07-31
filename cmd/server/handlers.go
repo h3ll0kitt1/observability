@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -11,7 +12,16 @@ import (
 )
 
 func (app *application) getAll(w http.ResponseWriter, r *http.Request) {
-	list := app.storage.GetList()
+	list := ""
+	metrics := app.storage.GetList()
+	for _, metric := range metrics {
+		if metric.MType == "counter" {
+			list += fmt.Sprintf("%s: %d", metric.ID, *metric.Delta)
+			continue
+		}
+		list += fmt.Sprintf("%s: %f", metric.ID, *metric.Value)
+	}
+
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(list))

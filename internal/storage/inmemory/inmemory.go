@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+
+	"github.com/h3ll0kitt1/observability/internal/models"
 )
 
 type MemStorage struct {
@@ -55,20 +57,31 @@ func (ms *MemStorage) Update(metricName string, metricValue any) {
 	}
 }
 
-func (ms *MemStorage) GetList() string {
-	list := ""
+func (ms *MemStorage) GetList() []*models.Metrics {
+	list := make([]*models.Metrics, 0, 0)
+
 	ms.Counter.Lock()
 	for name, value := range ms.Counter.mem {
-		list += name + fmt.Sprintf(" : %d\n", value)
+		metric := &models.Metrics{
+			ID:    name,
+			MType: "counter",
+			Delta: &value,
+		}
+		list = append(list, metric)
 	}
 	ms.Counter.Unlock()
 
 	ms.Gauge.Lock()
 	for name, value := range ms.Gauge.mem {
-		valueStr := strconv.FormatFloat(value, 'f', -1, 64)
-		list += name + " : " + valueStr + "\n"
+		metric := &models.Metrics{
+			ID:    name,
+			MType: "gauge",
+			Value: &value,
+		}
+		list = append(list, metric)
 	}
 	ms.Gauge.Unlock()
+
 	return list
 }
 

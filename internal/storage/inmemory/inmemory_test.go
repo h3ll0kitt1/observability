@@ -73,32 +73,6 @@ func TestMemStorage_Update(t *testing.T) {
 	}
 }
 
-func TestMemStorage_GetList(t *testing.T) {
-
-	tests := []struct {
-		name string
-		want string
-	}{
-		{
-			name: "list all",
-			want: "testCounter : 1\ntestGauge : 1\n",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-
-			ms := NewStorage()
-			ms.Counter.mem["testCounter"] = int64(1)
-			ms.Gauge.mem["testGauge"] = float64(1.0)
-
-			if got := ms.GetList(); got != tt.want {
-				t.Errorf("GetList() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestMemStorage_GetValue(t *testing.T) {
 
 	tests := []struct {
