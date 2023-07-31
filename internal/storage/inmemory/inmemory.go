@@ -58,7 +58,7 @@ func (ms *MemStorage) Update(metricName string, metricValue any) {
 }
 
 func (ms *MemStorage) GetList() []*models.Metrics {
-	list := make([]*models.Metrics, 0, 0)
+	list := make([]*models.Metrics, 0)
 
 	ms.Counter.Lock()
 	for name, value := range ms.Counter.mem {
