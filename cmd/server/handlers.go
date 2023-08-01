@@ -86,7 +86,7 @@ func (app *application) getGauge(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	valueStr := fmt.Sprintf("%f", *(metric.Value))
+	valueStr := strconv.FormatFloat(*(metric.Value), 'f', -1, 64)
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)

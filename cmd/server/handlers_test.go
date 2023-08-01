@@ -68,7 +68,7 @@ func TestRouterGet(t *testing.T) {
 	}{
 		// OK
 		{"/value/counter/testCounter", "2", http.StatusOK},
-		{"/value/gauge/testGauge", "2.000000", http.StatusOK},
+		{"/value/gauge/testGauge", "2", http.StatusOK},
 
 		// WRONG
 		{"/value/counter/unknownCounter", "", http.StatusNotFound},
