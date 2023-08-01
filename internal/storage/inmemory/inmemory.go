@@ -1,8 +1,6 @@
 package inmemory
 
 import (
-	"fmt"
-	"strconv"
 	"sync"
 
 	"github.com/h3ll0kitt1/observability/internal/models"
@@ -85,16 +83,17 @@ func (ms *MemStorage) GetList() []*models.Metrics {
 	return list
 }
 
-func (ms *MemStorage) GetValue(mtype, name string) (string, bool) {
-	switch mtype {
+func (ms *MemStorage) GetValue(metric *models.Metrics) bool {
+	var status bool
+	switch metric.MType {
 	case "counter":
-		value, ok := ms.Counter.mem[name]
-		return fmt.Sprintf("%d", value), ok
+		value, ok := ms.Counter.mem[metric.ID]
+		metric.Delta = &value
+		status = ok
 	case "gauge":
-		value, ok := ms.Gauge.mem[name]
-		valueStr := strconv.FormatFloat(value, 'f', -1, 64)
-		return valueStr, ok
-	default:
-		return "-1", false
+		value, ok := ms.Gauge.mem[metric.ID]
+		metric.Value = &value
+		status = ok
 	}
+	return status
 }

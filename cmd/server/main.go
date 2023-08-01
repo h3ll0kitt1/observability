@@ -31,7 +31,6 @@ func (app *application) loadFromDisk() error {
 }
 
 func (app *application) flushToDisk() {
-
 	ticker := time.NewTicker(app.backupTime)
 
 	for range ticker.C {

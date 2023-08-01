@@ -7,5 +7,5 @@ import (
 type Storage interface {
 	Update(metric *models.Metrics)
 	GetList() []*models.Metrics
-	GetValue(metricType, metricName string) (string, bool)
+	GetValue(metric *models.Metrics) bool
 }
