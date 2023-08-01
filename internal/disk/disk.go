@@ -10,11 +10,6 @@ import (
 	"github.com/h3ll0kitt1/observability/internal/storage"
 )
 
-type metric struct {
-	ID    string `json:"id"`
-	Value any    `json:"value"`
-}
-
 func Load(filename string, storage storage.Storage) error {
 	consumer, err := newConsumer(filename)
 	if err != nil {
@@ -23,14 +18,14 @@ func Load(filename string, storage storage.Storage) error {
 	defer consumer.close()
 
 	for {
-		event, err := consumer.readEvent()
+		metric, err := consumer.readMetric()
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
 			return err
 		}
-		storage.Update(event.ID, event.Value)
+		storage.Update(metric)
 	}
 	return nil
 }
@@ -44,7 +39,7 @@ func Flush(filename string, storage storage.Storage) {
 
 	metrics := storage.GetList()
 	for _, metric := range metrics {
-		if err := producer.writeEvent(metric); err != nil {
+		if err := producer.writeMetric(metric); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -67,12 +62,12 @@ func newConsumer(filename string) (*consumer, error) {
 	}, nil
 }
 
-func (c *consumer) readEvent() (*metric, error) {
-	event := &metric{}
-	if err := c.decoder.Decode(&event); err != nil {
+func (c *consumer) readMetric() (*models.Metrics, error) {
+	var metric models.Metrics
+	if err := c.decoder.Decode(&metric); err != nil {
 		return nil, err
 	}
-	return event, nil
+	return &metric, nil
 }
 
 func (c *consumer) close() error {
@@ -96,8 +91,8 @@ func newProducer(filename string) (*producer, error) {
 	}, nil
 }
 
-func (p *producer) writeEvent(event *models.Metrics) error {
-	return p.encoder.Encode(&event)
+func (p *producer) writeMetric(metric *models.Metrics) error {
+	return p.encoder.Encode(&metric)
 }
 
 func (p *producer) close() error {

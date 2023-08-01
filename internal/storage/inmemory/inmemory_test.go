@@ -2,49 +2,62 @@ package inmemory
 
 import (
 	"testing"
+
+	"github.com/h3ll0kitt1/observability/internal/models"
 )
 
 func TestMemStorage_Update(t *testing.T) {
 
+	gaugeValue := float64(2.0)
+	newGaugeValue := float64(3.0)
+	counterValue := int64(1.0)
+	newCounterValue := int64(3.0)
+
 	tests := []struct {
-		name        string
-		metricName  string
-		metricType  string
-		metricValue any
-		wantValue   any
-		wantStatus  bool
+		name       string
+		metric     models.Metrics
+		wantValue  any
+		wantStatus bool
 	}{
 		{
-			name:        "update existing gauge",
-			metricName:  "testGauge",
-			metricType:  "gauge",
-			metricValue: float64(2.0),
-			wantValue:   float64(2.0),
-			wantStatus:  true,
+			name: "update existing gauge",
+			metric: models.Metrics{
+				ID:    "testGauge",
+				MType: "gauge",
+				Value: &gaugeValue,
+			},
+			wantValue:  float64(2.0),
+			wantStatus: true,
 		},
 		{
-			name:        "update existing counter",
-			metricName:  "testCounter",
-			metricType:  "counter",
-			metricValue: int64(1.0),
-			wantValue:   int64(2.0),
-			wantStatus:  true,
+			name: "update existing counter",
+			metric: models.Metrics{
+				ID:    "testCounter",
+				MType: "counter",
+				Delta: &counterValue,
+			},
+			wantValue:  int64(2.0),
+			wantStatus: true,
 		},
 		{
-			name:        "update new gauge",
-			metricName:  "newGauge",
-			metricType:  "gauge",
-			metricValue: float64(3.0),
-			wantValue:   float64(3.0),
-			wantStatus:  true,
+			name: "update new gauge",
+			metric: models.Metrics{
+				ID:    "newGauge",
+				MType: "gauge",
+				Value: &newGaugeValue,
+			},
+			wantValue:  float64(3.0),
+			wantStatus: true,
 		},
 		{
-			name:        "update new counter",
-			metricName:  "testCounter",
-			metricType:  "counter",
-			metricValue: int64(3.0),
-			wantValue:   int64(3.0),
-			wantStatus:  true,
+			name: "update new counter",
+			metric: models.Metrics{
+				ID:    "testCounter",
+				MType: "counter",
+				Delta: &newCounterValue,
+			},
+			wantValue:  int64(3.0),
+			wantStatus: true,
 		},
 	}
 
@@ -55,16 +68,16 @@ func TestMemStorage_Update(t *testing.T) {
 			ms.Counter.mem["testCounter"] = int64(1)
 			ms.Gauge.mem["testGauge"] = float64(1.0)
 
-			ms.Update(tt.metricName, tt.metricValue)
+			ms.Update(&tt.metric)
 
-			if tt.metricType == "counter" {
-				if got, ok := ms.Counter.mem[tt.metricName]; got != tt.wantValue && ok != tt.wantStatus {
+			if tt.metric.MType == "counter" {
+				if got, ok := ms.Counter.mem[tt.metric.ID]; got != tt.wantValue && ok != tt.wantStatus {
 					t.Errorf("MemStorage_Update() = %v, want %v , wantStatus %v", got, tt.wantValue, tt.wantStatus)
 				}
 			}
 
-			if tt.metricType == "gauge" {
-				if got, ok := ms.Gauge.mem[tt.metricName]; got != tt.wantValue && ok != tt.wantStatus {
+			if tt.metric.MType == "gauge" {
+				if got, ok := ms.Gauge.mem[tt.metric.ID]; got != tt.wantValue && ok != tt.wantStatus {
 					t.Errorf("Update() = %v, want %v , wantStatus %v", got, tt.wantValue, tt.wantStatus)
 				}
 			}

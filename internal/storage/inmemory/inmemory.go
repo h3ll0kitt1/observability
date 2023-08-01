@@ -44,15 +44,15 @@ func NewMemGauge() *MemGauge {
 	return &mg
 }
 
-func (ms *MemStorage) Update(metricName string, metricValue any) {
-	switch mv := metricValue.(type) {
-	case int64:
+func (ms *MemStorage) Update(metric *models.Metrics) {
+	switch metric.MType {
+	case "counter":
 		ms.Counter.Lock()
-		ms.Counter.mem[metricName] += mv
+		ms.Counter.mem[metric.ID] += *(metric.Delta)
 		ms.Counter.Unlock()
-	case float64:
+	case "gauge":
 		ms.Gauge.Lock()
-		ms.Gauge.mem[metricName] = mv
+		ms.Gauge.mem[metric.ID] = *(metric.Value)
 		ms.Gauge.Unlock()
 	}
 }

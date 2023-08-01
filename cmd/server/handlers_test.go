@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/h3ll0kitt1/observability/internal/logger"
+	"github.com/h3ll0kitt1/observability/internal/models"
 	"github.com/h3ll0kitt1/observability/internal/storage/inmemory"
 )
 
@@ -39,8 +40,21 @@ func TestRouterGet(t *testing.T) {
 		logger:  l,
 	}
 
-	s.Update("testGauge", float64(2.0))
-	s.Update("testCounter", int64(2))
+	gaugeValue := float64(2.0)
+	m1 := models.Metrics{
+		ID:    "testGauge",
+		MType: "gauge",
+		Value: &gaugeValue,
+	}
+	s.Update(&m1)
+
+	counterValue := int64(2)
+	m2 := models.Metrics{
+		ID:    "testCounter",
+		MType: "counter",
+		Delta: &counterValue,
+	}
+	s.Update(&m2)
 
 	app.setRouters()
 

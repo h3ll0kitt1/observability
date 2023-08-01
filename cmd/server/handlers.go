@@ -104,14 +104,7 @@ func (app *application) updateValue(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-
-	if metric.Delta != nil {
-		app.storage.Update(metric.ID, *(metric.Delta))
-	}
-
-	if metric.Value != nil {
-		app.storage.Update(metric.ID, *(metric.Value))
-	}
+	app.storage.Update(&metric)
 
 	jsonData, err := json.Marshal(metric)
 	if err != nil {
@@ -133,7 +126,12 @@ func (app *application) updateCounter(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	app.storage.Update(name, value)
+	metric := models.Metrics{
+		ID:    name,
+		MType: "counter",
+		Delta: &value,
+	}
+	app.storage.Update(&metric)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -147,7 +145,12 @@ func (app *application) updateGauge(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	app.storage.Update(name, value)
+	metric := models.Metrics{
+		ID:    name,
+		MType: "gauge",
+		Value: &value,
+	}
+	app.storage.Update(&metric)
 	w.WriteHeader(http.StatusOK)
 }
 
