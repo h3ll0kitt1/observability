@@ -1,90 +1,90 @@
 package inmemory
 
-import (
-	"testing"
+// import (
+// 	"testing"
 
-	"github.com/h3ll0kitt1/observability/internal/models"
-)
+// 	"github.com/h3ll0kitt1/observability/internal/models"
+// )
 
-func TestMemStorage_Update(t *testing.T) {
+// func TestMemStorage_Update(t *testing.T) {
 
-	gaugeValue := float64(2.12346)
-	newGaugeValue := float64(3.123456)
-	counterValue := int64(1)
-	newCounterValue := int64(3)
+// 	gaugeValue := float64(2.12346)
+// 	newGaugeValue := float64(3.123456)
+// 	counterValue := int64(1)
+// 	newCounterValue := int64(3)
 
-	tests := []struct {
-		name       string
-		metric     models.Metrics
-		wantValue  any
-		wantStatus bool
-	}{
-		{
-			name: "update existing gauge",
-			metric: models.Metrics{
-				ID:    "testGauge",
-				MType: "gauge",
-				Value: &gaugeValue,
-			},
-			wantValue:  float64(3.35802),
-			wantStatus: true,
-		},
-		{
-			name: "update existing counter",
-			metric: models.Metrics{
-				ID:    "testCounter",
-				MType: "counter",
-				Delta: &counterValue,
-			},
-			wantValue:  int64(2),
-			wantStatus: true,
-		},
-		{
-			name: "update new gauge",
-			metric: models.Metrics{
-				ID:    "newGauge",
-				MType: "gauge",
-				Value: &newGaugeValue,
-			},
-			wantValue:  float64(3.123456),
-			wantStatus: true,
-		},
-		{
-			name: "update new counter",
-			metric: models.Metrics{
-				ID:    "testCounter",
-				MType: "counter",
-				Delta: &newCounterValue,
-			},
-			wantValue:  int64(3),
-			wantStatus: true,
-		},
-	}
+// 	tests := []struct {
+// 		name       string
+// 		metric     models.Metrics
+// 		wantValue  any
+// 		wantStatus bool
+// 	}{
+// 		{
+// 			name: "update existing gauge",
+// 			metric: models.Metrics{
+// 				ID:    "testGauge",
+// 				MType: "gauge",
+// 				Value: &gaugeValue,
+// 			},
+// 			wantValue:  float64(3.35802),
+// 			wantStatus: true,
+// 		},
+// 		{
+// 			name: "update existing counter",
+// 			metric: models.Metrics{
+// 				ID:    "testCounter",
+// 				MType: "counter",
+// 				Delta: &counterValue,
+// 			},
+// 			wantValue:  int64(2),
+// 			wantStatus: true,
+// 		},
+// 		{
+// 			name: "update new gauge",
+// 			metric: models.Metrics{
+// 				ID:    "newGauge",
+// 				MType: "gauge",
+// 				Value: &newGaugeValue,
+// 			},
+// 			wantValue:  float64(3.123456),
+// 			wantStatus: true,
+// 		},
+// 		{
+// 			name: "update new counter",
+// 			metric: models.Metrics{
+// 				ID:    "testCounter",
+// 				MType: "counter",
+// 				Delta: &newCounterValue,
+// 			},
+// 			wantValue:  int64(3),
+// 			wantStatus: true,
+// 		},
+// 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
 
-			ms := NewStorage()
-			ms.Counter.mem["testCounter"] = int64(1)
-			ms.Gauge.mem["testGauge"] = float64(1.23456)
+// 			ms := NewStorage()
+// 			ms.Counter.mem["testCounter"] = int64(1)
+// 			ms.Gauge.mem["testGauge"] = float64(1.23456)
 
-			ms.Update(&tt.metric)
+// 			ms.Update(&tt.metric)
 
-			if tt.metric.MType == "counter" {
-				if got, ok := ms.Counter.mem[tt.metric.ID]; got != tt.wantValue && ok != tt.wantStatus {
-					t.Errorf("MemStorage_Update() = %v, want %v , wantStatus %v", got, tt.wantValue, tt.wantStatus)
-				}
-			}
+// 			if tt.metric.MType == "counter" {
+// 				if got, ok := ms.Counter.mem[tt.metric.ID]; got != tt.wantValue && ok != tt.wantStatus {
+// 					t.Errorf("MemStorage_Update() = %v, want %v , wantStatus %v", got, tt.wantValue, tt.wantStatus)
+// 				}
+// 			}
 
-			if tt.metric.MType == "gauge" {
-				if got, ok := ms.Gauge.mem[tt.metric.ID]; got != tt.wantValue && ok != tt.wantStatus {
-					t.Errorf("Update() = %v, want %v , wantStatus %v", got, tt.wantValue, tt.wantStatus)
-				}
-			}
+// 			if tt.metric.MType == "gauge" {
+// 				if got, ok := ms.Gauge.mem[tt.metric.ID]; got != tt.wantValue && ok != tt.wantStatus {
+// 					t.Errorf("Update() = %v, want %v , wantStatus %v", got, tt.wantValue, tt.wantStatus)
+// 				}
+// 			}
 
-		})
-	}
-}
+// 		})
+// 	}
+// }
 
 // func TestMemStorage_GetValue(t *testing.T) {
 

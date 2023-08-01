@@ -37,6 +37,10 @@ func (app *application) getValue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	app.logger.Infow("get value",
+		"value", metric,
+	)
+
 	ok := app.storage.GetValue(&metric)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
@@ -102,7 +106,14 @@ func (app *application) updateValue(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	app.logger.Infow("value to update",
+		"value", metric,
+	)
 	app.storage.Update(&metric)
+
+	app.logger.Infow("updated value",
+		"value", metric,
+	)
 
 	jsonData, err := json.Marshal(metric)
 	if err != nil {

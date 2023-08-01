@@ -39,6 +39,7 @@ func Flush(filename string, storage storage.Storage) {
 
 	metrics := storage.GetList()
 	for _, metric := range metrics {
+		log.Print("Flush metric to disk", metric)
 		if err := producer.writeMetric(metric); err != nil {
 			log.Fatal(err)
 		}

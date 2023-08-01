@@ -12,12 +12,12 @@ type MemStorage struct {
 }
 
 type MemCounter struct {
-	mem map[string]int64
+	mem map[string]*int64
 	sync.Mutex
 }
 
 type MemGauge struct {
-	mem map[string]float64
+	mem map[string]*float64
 	sync.Mutex
 }
 
@@ -32,13 +32,13 @@ func NewStorage() *MemStorage {
 
 func NewMemCounter() *MemCounter {
 	var mc MemCounter
-	mc.mem = make(map[string]int64)
+	mc.mem = make(map[string]*int64)
 	return &mc
 }
 
 func NewMemGauge() *MemGauge {
 	var mg MemGauge
-	mg.mem = make(map[string]float64)
+	mg.mem = make(map[string]*float64)
 	return &mg
 }
 
@@ -46,40 +46,44 @@ func (ms *MemStorage) Update(metric *models.Metrics) {
 	switch metric.MType {
 	case "counter":
 		ms.Counter.Lock()
-		ms.Counter.mem[metric.ID] += *(metric.Delta)
+		if _, ok := ms.Counter.mem[metric.ID]; ok {
+			*(ms.Counter.mem[metric.ID]) += *(metric.Delta)
+			break
+		}
+		ms.Counter.mem[metric.ID] = metric.Delta
 		ms.Counter.Unlock()
 	case "gauge":
 		ms.Gauge.Lock()
-		ms.Gauge.mem[metric.ID] = *(metric.Value)
+		ms.Gauge.mem[metric.ID] = metric.Value
 		ms.Gauge.Unlock()
 	}
 }
 
 func (ms *MemStorage) GetList() []*models.Metrics {
+	ms.Counter.Lock()
+	ms.Gauge.Lock()
+
 	list := make([]*models.Metrics, 0)
 
-	ms.Counter.Lock()
 	for name, value := range ms.Counter.mem {
 		metric := &models.Metrics{
 			ID:    name,
 			MType: "counter",
-			Delta: &value,
+			Delta: value,
 		}
 		list = append(list, metric)
 	}
-	ms.Counter.Unlock()
 
-	ms.Gauge.Lock()
 	for name, value := range ms.Gauge.mem {
 		metric := &models.Metrics{
 			ID:    name,
 			MType: "gauge",
-			Value: &value,
+			Value: value,
 		}
 		list = append(list, metric)
 	}
+	ms.Counter.Unlock()
 	ms.Gauge.Unlock()
-
 	return list
 }
 
@@ -88,11 +92,11 @@ func (ms *MemStorage) GetValue(metric *models.Metrics) bool {
 	switch metric.MType {
 	case "counter":
 		value, ok := ms.Counter.mem[metric.ID]
-		metric.Delta = &value
+		metric.Delta = value
 		status = ok
 	case "gauge":
 		value, ok := ms.Gauge.mem[metric.ID]
-		metric.Value = &value
+		metric.Value = value
 		status = ok
 	}
 	return status

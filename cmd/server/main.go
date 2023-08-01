@@ -27,6 +27,12 @@ func (app *application) loadFromDisk() error {
 	if err := disk.Load(app.backupFile, app.storage); err != nil {
 		return err
 	}
+	m := app.storage.GetList()
+	for _, t := range m {
+		app.logger.Infow("load from disk file",
+			"metrics", t,
+		)
+	}
 	return nil
 }
 
