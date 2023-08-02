@@ -1,7 +1,6 @@
 package inmemory
 
 import (
-	"log"
 	"sync"
 
 	"github.com/h3ll0kitt1/observability/internal/models"
@@ -89,14 +88,12 @@ func (ms *MemStorage) GetValue(metric models.MetricsWithValue) (models.MetricsWi
 	switch metric.MType {
 	case "counter":
 		value, ok := ms.Counter.mem[metric.ID]
-		log.Print(ok)
 		if ok {
 			metric.Delta = value
 		}
 		status = ok
 	case "gauge":
 		value, ok := ms.Gauge.mem[metric.ID]
-		log.Print(ok)
 		if ok {
 			metric.Value = value
 		}

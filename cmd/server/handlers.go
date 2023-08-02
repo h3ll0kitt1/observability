@@ -42,13 +42,13 @@ func (app *application) getValue(w http.ResponseWriter, r *http.Request) {
 	)
 
 	metricWithValue := models.ToMetricWithValue(metric)
-	m, ok := app.storage.GetValue(metricWithValue)
+	metricWithValue, ok := app.storage.GetValue(metricWithValue)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	metric = models.ToMetric(m)
+	metric = models.ToMetric(metricWithValue)
 	jsonData, err := json.Marshal(metric)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -62,18 +62,17 @@ func (app *application) getValue(w http.ResponseWriter, r *http.Request) {
 func (app *application) getCounter(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 
-	metric := models.Metrics{
+	metric := models.MetricsWithValue{
 		ID:    name,
 		MType: "counter",
 	}
 
-	metricWithValue := models.ToMetricWithValue(metric)
-	m, ok := app.storage.GetValue(metricWithValue)
+	metric, ok := app.storage.GetValue(metric)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	valueStr := fmt.Sprintf("%d", m.Delta)
+	valueStr := fmt.Sprintf("%d", metric.Delta)
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
@@ -83,18 +82,17 @@ func (app *application) getCounter(w http.ResponseWriter, r *http.Request) {
 func (app *application) getGauge(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 
-	metric := models.Metrics{
+	metric := models.MetricsWithValue{
 		ID:    name,
 		MType: "gauge",
 	}
 
-	metricWithValue := models.ToMetricWithValue(metric)
-	m, ok := app.storage.GetValue(metricWithValue)
+	metric, ok := app.storage.GetValue(metric)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	valueStr := strconv.FormatFloat(m.Value, 'f', -1, 64)
+	valueStr := strconv.FormatFloat(metric.Value, 'f', -1, 64)
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
