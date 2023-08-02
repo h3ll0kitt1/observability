@@ -1,6 +1,7 @@
 package inmemory
 
 import (
+	"log"
 	"sync"
 
 	"github.com/h3ll0kitt1/observability/internal/models"
@@ -12,12 +13,12 @@ type MemStorage struct {
 }
 
 type MemCounter struct {
-	mem map[string]*int64
+	mem map[string]int64
 	sync.Mutex
 }
 
 type MemGauge struct {
-	mem map[string]*float64
+	mem map[string]float64
 	sync.Mutex
 }
 
@@ -32,25 +33,21 @@ func NewStorage() *MemStorage {
 
 func NewMemCounter() *MemCounter {
 	var mc MemCounter
-	mc.mem = make(map[string]*int64)
+	mc.mem = make(map[string]int64)
 	return &mc
 }
 
 func NewMemGauge() *MemGauge {
 	var mg MemGauge
-	mg.mem = make(map[string]*float64)
+	mg.mem = make(map[string]float64)
 	return &mg
 }
 
-func (ms *MemStorage) Update(metric *models.Metrics) {
+func (ms *MemStorage) Update(metric models.MetricsWithValue) {
 	switch metric.MType {
 	case "counter":
 		ms.Counter.Lock()
-		if _, ok := ms.Counter.mem[metric.ID]; ok {
-			*(ms.Counter.mem[metric.ID]) += *(metric.Delta)
-			break
-		}
-		ms.Counter.mem[metric.ID] = metric.Delta
+		ms.Counter.mem[metric.ID] += metric.Delta
 		ms.Counter.Unlock()
 	case "gauge":
 		ms.Gauge.Lock()
@@ -59,14 +56,14 @@ func (ms *MemStorage) Update(metric *models.Metrics) {
 	}
 }
 
-func (ms *MemStorage) GetList() []*models.Metrics {
+func (ms *MemStorage) GetList() []*models.MetricsWithValue {
 	ms.Counter.Lock()
 	ms.Gauge.Lock()
 
-	list := make([]*models.Metrics, 0)
+	list := make([]*models.MetricsWithValue, 0)
 
 	for name, value := range ms.Counter.mem {
-		metric := &models.Metrics{
+		metric := &models.MetricsWithValue{
 			ID:    name,
 			MType: "counter",
 			Delta: value,
@@ -75,7 +72,7 @@ func (ms *MemStorage) GetList() []*models.Metrics {
 	}
 
 	for name, value := range ms.Gauge.mem {
-		metric := &models.Metrics{
+		metric := &models.MetricsWithValue{
 			ID:    name,
 			MType: "gauge",
 			Value: value,
@@ -87,17 +84,23 @@ func (ms *MemStorage) GetList() []*models.Metrics {
 	return list
 }
 
-func (ms *MemStorage) GetValue(metric *models.Metrics) bool {
+func (ms *MemStorage) GetValue(metric models.MetricsWithValue) (models.MetricsWithValue, bool) {
 	var status bool
 	switch metric.MType {
 	case "counter":
 		value, ok := ms.Counter.mem[metric.ID]
-		metric.Delta = value
+		log.Print(ok)
+		if ok {
+			metric.Delta = value
+		}
 		status = ok
 	case "gauge":
 		value, ok := ms.Gauge.mem[metric.ID]
-		metric.Value = value
+		log.Print(ok)
+		if ok {
+			metric.Value = value
+		}
 		status = ok
 	}
-	return status
+	return metric, status
 }

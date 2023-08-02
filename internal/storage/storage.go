@@ -5,7 +5,7 @@ import (
 )
 
 type Storage interface {
-	Update(metric *models.Metrics)
-	GetList() []*models.Metrics
-	GetValue(metric *models.Metrics) bool
+	Update(metric models.MetricsWithValue)
+	GetList() []*models.MetricsWithValue
+	GetValue(metric models.MetricsWithValue) (models.MetricsWithValue, bool)
 }

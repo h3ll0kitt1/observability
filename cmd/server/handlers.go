@@ -16,10 +16,10 @@ func (app *application) getAll(w http.ResponseWriter, r *http.Request) {
 	metrics := app.storage.GetList()
 	for _, metric := range metrics {
 		if metric.MType == "counter" {
-			list += fmt.Sprintf("%s: %d", metric.ID, *metric.Delta)
+			list += fmt.Sprintf("%s: %d", metric.ID, metric.Delta)
 			continue
 		}
-		list += fmt.Sprintf("%s: %f", metric.ID, *metric.Value)
+		list += fmt.Sprintf("%s: %f", metric.ID, metric.Value)
 	}
 
 	w.Header().Set("Content-Type", "text/html")
@@ -38,15 +38,17 @@ func (app *application) getValue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	app.logger.Infow("get value",
-		"value", metric,
+		"metric", metric,
 	)
 
-	ok := app.storage.GetValue(&metric)
+	metricWithValue := models.ToMetricWithValue(metric)
+	m, ok := app.storage.GetValue(metricWithValue)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
+	metric = models.ToMetric(m)
 	jsonData, err := json.Marshal(metric)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -65,12 +67,13 @@ func (app *application) getCounter(w http.ResponseWriter, r *http.Request) {
 		MType: "counter",
 	}
 
-	ok := app.storage.GetValue(&metric)
+	metricWithValue := models.ToMetricWithValue(metric)
+	m, ok := app.storage.GetValue(metricWithValue)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	valueStr := fmt.Sprintf("%d", *(metric.Delta))
+	valueStr := fmt.Sprintf("%d", m.Delta)
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
@@ -85,12 +88,13 @@ func (app *application) getGauge(w http.ResponseWriter, r *http.Request) {
 		MType: "gauge",
 	}
 
-	ok := app.storage.GetValue(&metric)
+	metricWithValue := models.ToMetricWithValue(metric)
+	m, ok := app.storage.GetValue(metricWithValue)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	valueStr := strconv.FormatFloat(*(metric.Value), 'f', -1, 64)
+	valueStr := strconv.FormatFloat(m.Value, 'f', -1, 64)
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
@@ -106,13 +110,12 @@ func (app *application) updateValue(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	app.logger.Infow("value to update",
-		"value", metric,
-	)
-	app.storage.Update(&metric)
+
+	metricWithValue := models.ToMetricWithValue(metric)
+	app.storage.Update(metricWithValue)
 
 	app.logger.Infow("updated value",
-		"value", metric,
+		"metric", metricWithValue,
 	)
 
 	jsonData, err := json.Marshal(metric)
@@ -135,12 +138,12 @@ func (app *application) updateCounter(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	metric := models.Metrics{
+	metric := models.MetricsWithValue{
 		ID:    name,
 		MType: "counter",
-		Delta: &value,
+		Delta: value,
 	}
-	app.storage.Update(&metric)
+	app.storage.Update(metric)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -154,12 +157,12 @@ func (app *application) updateGauge(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	metric := models.Metrics{
+	metric := models.MetricsWithValue{
 		ID:    name,
 		MType: "gauge",
-		Value: &value,
+		Value: value,
 	}
-	app.storage.Update(&metric)
+	app.storage.Update(metric)
 	w.WriteHeader(http.StatusOK)
 }
 

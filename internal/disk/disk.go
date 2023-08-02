@@ -25,7 +25,8 @@ func Load(filename string, storage storage.Storage) error {
 			}
 			return err
 		}
-		storage.Update(metric)
+		m := models.ToMetricWithValue(*metric)
+		storage.Update(m)
 	}
 	return nil
 }
@@ -39,8 +40,8 @@ func Flush(filename string, storage storage.Storage) {
 
 	metrics := storage.GetList()
 	for _, metric := range metrics {
-		log.Print("Flush metric to disk", metric)
-		if err := producer.writeMetric(metric); err != nil {
+		m := models.ToMetric(*metric)
+		if err := producer.writeMetric(&m); err != nil {
 			log.Fatal(err)
 		}
 	}
