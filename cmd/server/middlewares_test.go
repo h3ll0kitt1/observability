@@ -26,21 +26,19 @@ func TestGzipper(t *testing.T) {
 		logger:  l,
 	}
 
-	gaugeValue := float64(2.0)
-	m1 := models.Metrics{
+	testGauge := models.MetricsWithValue{
 		ID:    "testGauge",
 		MType: "gauge",
-		Value: &gaugeValue,
+		Value: float64(2.0),
 	}
-	s.Update(&m1)
+	s.Update(testGauge)
 
-	counterValue := int64(2)
-	m2 := models.Metrics{
+	testCounter := models.MetricsWithValue{
 		ID:    "testCounter",
 		MType: "counter",
-		Delta: &counterValue,
+		Delta: int64(2),
 	}
-	s.Update(&m2)
+	s.Update(testCounter)
 
 	app.setRouters()
 
