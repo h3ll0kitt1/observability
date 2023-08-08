@@ -42,7 +42,7 @@ func Flush(filename string, storage storage.Storage) {
 	for _, metric := range metrics {
 		m := models.ToMetric(*metric)
 		if err := producer.writeMetric(&m); err != nil {
-			log.Fatal(err)
+			log.Print(err)
 		}
 	}
 }

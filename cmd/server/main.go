@@ -61,11 +61,12 @@ func main() {
 	if cfg.Restore {
 		if err := app.loadFromDisk(); err != nil {
 			log.Fatal(err)
-			return
 		}
 	}
 
-	go app.flushToDisk()
+	if app.backupTime > 0 {
+		go app.flushToDisk()
+	}
 
 	srv := &http.Server{
 		Addr:    cfg.Addr,

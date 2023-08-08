@@ -5,26 +5,28 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/h3ll0kitt1/observability/internal/disk"
 	"github.com/h3ll0kitt1/observability/internal/models"
 )
 
 func (app *application) getAll(w http.ResponseWriter, r *http.Request) {
-	list := ""
+	var list strings.Builder
 	metrics := app.storage.GetList()
 	for _, metric := range metrics {
 		if metric.MType == "counter" {
-			list += fmt.Sprintf("%s: %d", metric.ID, metric.Delta)
+			fmt.Fprintf(&list, "%s: %d\n", metric.ID, metric.Delta)
 			continue
 		}
-		list += fmt.Sprintf("%s: %f", metric.ID, metric.Value)
+		fmt.Fprintf(&list, "%s: %f\n", metric.ID, metric.Value)
 	}
 
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(list))
+	w.Write([]byte(list.String()))
 }
 
 func (app *application) getValue(w http.ResponseWriter, r *http.Request) {
@@ -112,6 +114,10 @@ func (app *application) updateValue(w http.ResponseWriter, r *http.Request) {
 	metricWithValue := models.ToMetricWithValue(metric)
 	app.storage.Update(metricWithValue)
 
+	if app.backupTime == 0 {
+		disk.Flush(app.backupFile, app.storage)
+	}
+
 	app.logger.Infow("updated value",
 		"metric", metricWithValue,
 	)
@@ -142,6 +148,9 @@ func (app *application) updateCounter(w http.ResponseWriter, r *http.Request) {
 		Delta: value,
 	}
 	app.storage.Update(metric)
+	if app.backupTime == 0 {
+		disk.Flush(app.backupFile, app.storage)
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -161,6 +170,9 @@ func (app *application) updateGauge(w http.ResponseWriter, r *http.Request) {
 		Value: value,
 	}
 	app.storage.Update(metric)
+	if app.backupTime == 0 {
+		disk.Flush(app.backupFile, app.storage)
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
