@@ -21,9 +21,11 @@ func TestGzipper(t *testing.T) {
 	l := logger.NewLogger()
 
 	app := &application{
-		storage: s,
-		router:  r,
-		logger:  l,
+		storage:    s,
+		router:     r,
+		logger:     l,
+		backupFile: "/tmp/metrics-db.json",
+		backupTime: 2,
 	}
 
 	testGauge := models.MetricsWithValue{

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/h3ll0kitt1/observability/internal/config"
 	"github.com/h3ll0kitt1/observability/internal/logger"
 	"github.com/h3ll0kitt1/observability/internal/models"
 	"github.com/h3ll0kitt1/observability/internal/storage/inmemory"
@@ -82,14 +83,19 @@ func TestRouterGet(t *testing.T) {
 }
 
 func TestRouterPost(t *testing.T) {
+
+	cfg := config.NewServerConfig()
+
 	s := inmemory.NewStorage()
 	r := chi.NewRouter()
 	l := logger.NewLogger()
 
 	app := &application{
-		storage: s,
-		router:  r,
-		logger:  l,
+		storage:    s,
+		router:     r,
+		logger:     l,
+		backupFile: cfg.FileStoragePath,
+		backupTime: cfg.StoreInterval,
 	}
 
 	app.setRouters()
