@@ -101,3 +101,7 @@ func (ms *MemStorage) GetValue(metric models.MetricsWithValue) (models.MetricsWi
 	}
 	return metric, status
 }
+
+func (ms *MemStorage) Ping() bool {
+	return true
+}

@@ -13,9 +13,11 @@ import (
 	"github.com/h3ll0kitt1/observability/internal/logger"
 	"github.com/h3ll0kitt1/observability/internal/storage"
 	"github.com/h3ll0kitt1/observability/internal/storage/inmemory"
+	"github.com/h3ll0kitt1/observability/internal/storage/sql"
 )
 
 type application struct {
+	config     *config.ServerConfig
 	storage    storage.Storage
 	router     *chi.Mux
 	logger     *zap.SugaredLogger
@@ -42,13 +44,20 @@ func main() {
 
 	cfg := config.NewServerConfig()
 
-	s := inmemory.NewStorage()
+	var s storage.Storage
+
+	s = inmemory.NewStorage()
+	if cfg.Database != "" {
+		s = sql.NewStorage(cfg)
+	}
+
 	r := chi.NewRouter()
 	l := logger.NewLogger()
 
 	defer l.Sync()
 
 	app := &application{
+		config:     cfg,
 		storage:    s,
 		router:     r,
 		logger:     l,

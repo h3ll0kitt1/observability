@@ -8,4 +8,5 @@ type Storage interface {
 	Update(metric models.MetricsWithValue)
 	GetList() []*models.MetricsWithValue
 	GetValue(metric models.MetricsWithValue) (models.MetricsWithValue, bool)
+	Ping() bool
 }

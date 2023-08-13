@@ -11,6 +11,7 @@ func (app *application) setRouters() {
 
 	app.router.Route("/", func(r chi.Router) {
 		app.router.Get("/", app.getAll)
+		app.router.Get("/ping", app.ping)
 
 		app.router.Route("/value", func(router chi.Router) {
 			router.Post("/", app.getValue)

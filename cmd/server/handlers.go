@@ -29,6 +29,20 @@ func (app *application) getAll(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(list.String()))
 }
 
+func (app *application) ping(w http.ResponseWriter, r *http.Request) {
+
+	if app.config.Database == "" {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	if ok := app.storage.Ping(); !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 func (app *application) getValue(w http.ResponseWriter, r *http.Request) {
 
 	var metric models.Metrics
