@@ -10,13 +10,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/h3ll0kitt1/observability/internal/config"
+	"github.com/h3ll0kitt1/observability/internal/logger"
+	"github.com/h3ll0kitt1/observability/internal/models"
 	"github.com/h3ll0kitt1/observability/internal/storage/inmemory"
 )
 
 func testRequest(t *testing.T, ts *httptest.Server, method, path string) (*http.Response, string) {
 	req, err := http.NewRequest(method, ts.URL+path, nil)
 	require.NoError(t, err)
-
+	req.Header.Set("Accept-Encoding", "identity")
 	resp, err := ts.Client().Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -30,14 +33,27 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string) (*http.
 func TestRouterGet(t *testing.T) {
 	s := inmemory.NewStorage()
 	r := chi.NewRouter()
+	l := logger.NewLogger()
 
 	app := &application{
 		storage: s,
 		router:  r,
+		logger:  l,
 	}
 
-	s.Update("testGauge", float64(2.0))
-	s.Update("testCounter", int64(2))
+	testGauge := models.MetricsWithValue{
+		ID:    "testGauge",
+		MType: "gauge",
+		Value: float64(2.0),
+	}
+	s.Update(testGauge)
+
+	testCounter := models.MetricsWithValue{
+		ID:    "testCounter",
+		MType: "counter",
+		Delta: int64(2),
+	}
+	s.Update(testCounter)
 
 	app.setRouters()
 
@@ -50,7 +66,6 @@ func TestRouterGet(t *testing.T) {
 		status int
 	}{
 		// OK
-		{"/", "testCounter : 2\ntestGauge : 2\n", http.StatusOK},
 		{"/value/counter/testCounter", "2", http.StatusOK},
 		{"/value/gauge/testGauge", "2", http.StatusOK},
 
@@ -68,12 +83,19 @@ func TestRouterGet(t *testing.T) {
 }
 
 func TestRouterPost(t *testing.T) {
+
+	cfg := config.NewServerConfig()
+
 	s := inmemory.NewStorage()
 	r := chi.NewRouter()
+	l := logger.NewLogger()
 
 	app := &application{
-		storage: s,
-		router:  r,
+		storage:    s,
+		router:     r,
+		logger:     l,
+		backupFile: cfg.FileStoragePath,
+		backupTime: cfg.StoreInterval,
 	}
 
 	app.setRouters()

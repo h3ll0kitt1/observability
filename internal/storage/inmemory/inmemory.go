@@ -1,9 +1,9 @@
 package inmemory
 
 import (
-	"fmt"
-	"strconv"
 	"sync"
+
+	"github.com/h3ll0kitt1/observability/internal/models"
 )
 
 type MemStorage struct {
@@ -42,46 +42,62 @@ func NewMemGauge() *MemGauge {
 	return &mg
 }
 
-func (ms *MemStorage) Update(metricName string, metricValue any) {
-	switch mv := metricValue.(type) {
-	case int64:
+func (ms *MemStorage) Update(metric models.MetricsWithValue) {
+	switch metric.MType {
+	case "counter":
 		ms.Counter.Lock()
-		ms.Counter.mem[metricName] += mv
+		ms.Counter.mem[metric.ID] += metric.Delta
 		ms.Counter.Unlock()
-	case float64:
+	case "gauge":
 		ms.Gauge.Lock()
-		ms.Gauge.mem[metricName] = mv
+		ms.Gauge.mem[metric.ID] = metric.Value
 		ms.Gauge.Unlock()
 	}
 }
 
-func (ms *MemStorage) GetList() string {
-	list := ""
+func (ms *MemStorage) GetList() []*models.MetricsWithValue {
 	ms.Counter.Lock()
+	ms.Gauge.Lock()
+
+	list := make([]*models.MetricsWithValue, 0)
+
 	for name, value := range ms.Counter.mem {
-		list += name + fmt.Sprintf(" : %d\n", value)
+		metric := &models.MetricsWithValue{
+			ID:    name,
+			MType: "counter",
+			Delta: value,
+		}
+		list = append(list, metric)
+	}
+
+	for name, value := range ms.Gauge.mem {
+		metric := &models.MetricsWithValue{
+			ID:    name,
+			MType: "gauge",
+			Value: value,
+		}
+		list = append(list, metric)
 	}
 	ms.Counter.Unlock()
-
-	ms.Gauge.Lock()
-	for name, value := range ms.Gauge.mem {
-		valueStr := strconv.FormatFloat(value, 'f', -1, 64)
-		list += name + " : " + valueStr + "\n"
-	}
 	ms.Gauge.Unlock()
 	return list
 }
 
-func (ms *MemStorage) GetValue(mtype, name string) (string, bool) {
-	switch mtype {
+func (ms *MemStorage) GetValue(metric models.MetricsWithValue) (models.MetricsWithValue, bool) {
+	var status bool
+	switch metric.MType {
 	case "counter":
-		value, ok := ms.Counter.mem[name]
-		return fmt.Sprintf("%d", value), ok
+		value, ok := ms.Counter.mem[metric.ID]
+		if ok {
+			metric.Delta = value
+		}
+		status = ok
 	case "gauge":
-		value, ok := ms.Gauge.mem[name]
-		valueStr := strconv.FormatFloat(value, 'f', -1, 64)
-		return valueStr, ok
-	default:
-		return "-1", false
+		value, ok := ms.Gauge.mem[metric.ID]
+		if ok {
+			metric.Value = value
+		}
+		status = ok
 	}
+	return metric, status
 }

@@ -1,14 +1,20 @@
 package client
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 
 	"github.com/h3ll0kitt1/observability/internal/config"
+	"github.com/h3ll0kitt1/observability/internal/models"
 )
 
 type customClient struct {
@@ -54,19 +60,36 @@ func newCustomClient(cfg *config.ClientConfig) customClient {
 
 func (m *metrics) sendToServer(client customClient) {
 	for mtype, mmap := range m.mapMetrics {
-		for mname, mvalue := range mmap {
-			client.doRequestPOST(mtype, mname, mvalue)
+		for name, value := range mmap {
+			client.doRequestPOST(mtype, name, value)
 		}
 	}
 }
 
-func (c customClient) doRequestPOST(mtype, mname, mvalue string) {
-	c.httpClient.R().SetPathParams(map[string]string{
-		"type":  mtype,
-		"name":  mname,
-		"value": mvalue,
-	}).
-		Post(c.endpoint + "/update/{type}/{name}/{value}")
+func (c customClient) doRequestPOST(mtype, name, value string) {
+
+	mvalue, err := convertWithType(mtype, value)
+	if err != nil {
+		log.Fatal("Type and recieved value mismatch: ", err)
+	}
+	metric := models.NewMetric(mtype, name, mvalue)
+
+	jsonData, err := json.Marshal(metric)
+	if err != nil {
+		log.Fatal("Error converting metric to JSON: ", err)
+	}
+
+	gzipData, err := GzipCompress(jsonData)
+	if err != nil {
+		log.Fatal("Error compressing JSON to GZIP: ", err)
+	}
+
+	c.httpClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Content-Encoding", "gzip").
+		SetHeader("Accept-Encoding", "gzip").
+		SetBody(gzipData).
+		Post(c.endpoint + "/update/")
 }
 
 func newMetrics() metrics {
@@ -117,9 +140,33 @@ func (m *metrics) updateSpecificMemStats() {
 	m.mapMetrics["gauge"]["TotalAlloc"] = convertToString(ms.TotalAlloc)
 }
 
+func convertWithType(mtype, value string) (any, error) {
+
+	switch mtype {
+
+	case "counter":
+		v, err := convertToInt64(value)
+		if err != nil {
+			return nil, err
+		}
+		return v, nil
+
+	case "gauge":
+		v, err := convertToFloat64(value)
+		if err != nil {
+			return nil, err
+		}
+		return v, nil
+	}
+
+	return -1, nil
+}
+
 func convertToString(value any) string {
 	res := ""
 	switch v := value.(type) {
+	case uint32:
+		res = fmt.Sprintf("%f", float64(v))
 	case uint64:
 		res = fmt.Sprintf("%f", float64(v))
 	case float64:
@@ -128,12 +175,45 @@ func convertToString(value any) string {
 	return res
 }
 
+func convertToInt64(s string) (int64, error) {
+	value, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return -1, err
+	}
+	return value, nil
+}
+
+func convertToFloat64(s string) (float64, error) {
+	value, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return -1, err
+	}
+	return value, nil
+}
+
 func (m *metrics) updateRandomValue(rng *rand.Rand) {
 	value := float64(rng.Intn(100))
-	m.mapMetrics["gauge"]["Random"] = convertToString(value)
+	m.mapMetrics["gauge"]["RandomValue"] = convertToString(value)
 }
 
 func (m *metrics) updateCounterValue() {
 	m.pollCount++
-	m.mapMetrics["counter"]["Counter"] = fmt.Sprintf("%d", m.pollCount)
+	m.mapMetrics["counter"]["PollCount"] = fmt.Sprintf("%d", m.pollCount)
+}
+
+func GzipCompress(data []byte) ([]byte, error) {
+	var buf bytes.Buffer
+
+	w := gzip.NewWriter(&buf)
+	_, err := w.Write(data)
+	if err != nil {
+		return nil, err
+	}
+
+	err = w.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }

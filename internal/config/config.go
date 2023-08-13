@@ -19,7 +19,10 @@ type ClientConfig struct {
 }
 
 type ServerConfig struct {
-	Addr string
+	Addr            string
+	StoreInterval   time.Duration
+	FileStoragePath string
+	Restore         bool
 }
 
 func NewClientConfig() *ClientConfig {
@@ -72,17 +75,46 @@ func NewClientConfig() *ClientConfig {
 
 func NewServerConfig() *ServerConfig {
 
-	var flagRunAddr string
+	var (
+		flagRunAddr         string
+		flagFileStoragePath string
+		flagStoreInterval   int
+		flagRestore         bool
+	)
 
 	flag.StringVar(&flagRunAddr, "a", "localhost:8080", "address and port to run server")
+	flag.StringVar(&flagFileStoragePath, "f", "/tmp/metrics-db.json", "full name of file to save metrics")
+	flag.IntVar(&flagStoreInterval, "i", 300, "interval in seconds to store metric values to file")
+	flag.BoolVar(&flagRestore, "r", true, "bool value to show if previosly saved metrics should be loaded into server memory")
 	flag.Parse()
 
 	if envRunAddr := os.Getenv("ADDRESS"); envRunAddr != "" {
 		flagRunAddr = envRunAddr
 	}
 
+	if envFileStoragePath := os.Getenv("FILE_STORAGE_PATH"); envFileStoragePath != "" {
+		flagFileStoragePath = envFileStoragePath
+	}
+
+	envRestore, err := strconv.ParseBool(os.Getenv("RESTORE"))
+	if err == nil {
+		flagRestore = envRestore
+	}
+
+	envStoreInterval, err := strconv.Atoi(os.Getenv("STORE_INTERVAL"))
+	if err == nil {
+		flagStoreInterval = envStoreInterval
+	}
+
 	addr := flagRunAddr
+	file := flagFileStoragePath
+	storeInterval := time.Duration(flagStoreInterval) * time.Second
+	restore := flagRestore
+
 	return &ServerConfig{
-		Addr: addr,
+		Addr:            addr,
+		StoreInterval:   storeInterval,
+		FileStoragePath: file,
+		Restore:         restore,
 	}
 }
