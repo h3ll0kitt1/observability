@@ -115,6 +115,30 @@ func (app *application) getGauge(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(valueStr))
 }
 
+func (app *application) updateList(w http.ResponseWriter, r *http.Request) {
+	var list []models.Metrics
+
+	err := json.NewDecoder(r.Body).Decode(&list)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	listWithValue := make([]models.MetricsWithValue, 0, len(list))
+	for _, metric := range list {
+		metricWithValue := models.ToMetricWithValue(metric)
+		listWithValue = append(listWithValue, metricWithValue)
+	}
+
+	app.storage.UpdateList(listWithValue)
+
+	if app.backupTime == 0 {
+		disk.Flush(app.backupFile, app.storage)
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 func (app *application) updateValue(w http.ResponseWriter, r *http.Request) {
 
 	var metric models.Metrics

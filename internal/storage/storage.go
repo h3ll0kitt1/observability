@@ -6,7 +6,8 @@ import (
 
 type Storage interface {
 	Update(metric models.MetricsWithValue)
-	GetList() []*models.MetricsWithValue
+	UpdateList(metric []models.MetricsWithValue)
 	GetValue(metric models.MetricsWithValue) (models.MetricsWithValue, bool)
+	GetList() []*models.MetricsWithValue
 	Ping() bool
 }

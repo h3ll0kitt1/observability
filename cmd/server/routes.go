@@ -20,6 +20,8 @@ func (app *application) setRouters() {
 			router.Get("/{other}/{name}", errorUnknown)
 		})
 
+		app.router.Post("/updates/", app.updateList)
+
 		app.router.Route("/update", func(router chi.Router) {
 			router.Post("/", app.updateValue)
 

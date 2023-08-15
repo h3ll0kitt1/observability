@@ -9,8 +9,8 @@ func TestMetrics_updateSpecificMemStats(t *testing.T) {
 	m := newMetrics()
 	m.updateSpecificMemStats()
 
-	want := 27
-	if got := len(m.mapMetrics["gauge"]); got != want {
+	want := 24
+	if got := len(m.mapMetrics); got != want {
 		t.Errorf("updateSpecificMemStats() = %v, want %v", got, want)
 	}
 }
@@ -20,9 +20,10 @@ func TestMetrics_updateRandomValue(t *testing.T) {
 	m := newMetrics()
 	m.updateRandomValue(rng)
 
-	want := "81.000000"
-	if got := m.mapMetrics["gauge"]["RandomValue"]; got != want {
-		t.Errorf("updateRandomValue() = %v, want %v", got, want)
+	want := float64(81)
+	key := metricKey{id: "RandomValue", mtype: "gauge"}
+	if got := m.mapMetrics[key]; *got.Value != want {
+		t.Errorf("updateRandomValue() = %v, want %v", *got.Value, want)
 	}
 }
 
@@ -30,35 +31,61 @@ func TestMetrics_updateCounterValue(t *testing.T) {
 	m := newMetrics()
 	m.updateCounterValue()
 
-	want := "1"
-	if got := m.mapMetrics["counter"]["PollCount"]; got != want {
-		t.Errorf("updateCounterValue() = %v, want %v", got, want)
+	want := int64(1)
+	key := metricKey{id: "PollCount", mtype: "counter"}
+	if got := m.mapMetrics[key]; *got.Delta != want {
+		t.Errorf("updateCounterValue() = %v, want %v", *got.Delta, want)
 	}
 }
 
-func TestConvertToString(t *testing.T) {
+func TestGetFloat64(t *testing.T) {
 
 	tests := []struct {
 		name  string
 		value any
-		want  string
+		want  float64
 	}{
 		{
-			name:  "test counter type",
-			value: uint64(1),
-			want:  "1.000000",
+			name:  "test float64 type",
+			value: float64(1),
+			want:  float64(1),
 		},
 		{
-			name:  "test gauge type",
-			value: float64(2.55500),
-			want:  "2.555000",
+			name:  "test float32 type",
+			value: float32(1),
+			want:  float64(1),
+		},
+		{
+			name:  "test int64 type",
+			value: int64(1),
+			want:  float64(1),
+		},
+		{
+			name:  "test int32 type",
+			value: int32(1),
+			want:  float64(1),
+		},
+		{
+			name:  "test uint64 type",
+			value: uint64(1),
+			want:  float64(1),
+		},
+		{
+			name:  "test uint32 type",
+			value: uint32(1),
+			want:  float64(1),
+		},
+		{
+			name:  "test not specified type",
+			value: "1",
+			want:  float64(-1),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := convertToString(tt.value); got != tt.want {
-				t.Errorf("convertToString() = %v, want %v", got, tt.want)
+			if got := getFloat64(tt.value); got != tt.want {
+				t.Errorf("getFloat64() = %v, want %v", got, tt.want)
 			}
 		})
 	}

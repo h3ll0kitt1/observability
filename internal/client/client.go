@@ -4,11 +4,10 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
-	"fmt"
 	"log"
 	"math/rand"
+	"reflect"
 	"runtime"
-	"strconv"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -22,8 +21,14 @@ type customClient struct {
 	endpoint   string
 }
 
+type metricKey struct {
+	id    string
+	mtype string
+}
+
 type metrics struct {
-	mapMetrics map[string]map[string]string
+	mapMetrics map[metricKey]models.Metrics
+	arrMetrics []models.Metrics
 	pollCount  int64
 }
 
@@ -59,24 +64,16 @@ func newCustomClient(cfg *config.ClientConfig) customClient {
 }
 
 func (m *metrics) sendToServer(client customClient) {
-	for mtype, mmap := range m.mapMetrics {
-		for name, value := range mmap {
-			client.doRequestPOST(mtype, name, value)
-		}
+	if len(m.arrMetrics) != 0 {
+		client.doRequestPOST(m.arrMetrics)
 	}
 }
 
-func (c customClient) doRequestPOST(mtype, name, value string) {
+func (c customClient) doRequestPOST(metrics []models.Metrics) {
 
-	mvalue, err := convertWithType(mtype, value)
+	jsonData, err := json.Marshal(metrics)
 	if err != nil {
-		log.Fatal("Type and recieved value mismatch: ", err)
-	}
-	metric := models.NewMetric(mtype, name, mvalue)
-
-	jsonData, err := json.Marshal(metric)
-	if err != nil {
-		log.Fatal("Error converting metric to JSON: ", err)
+		log.Fatal("Error converting slice of metrics to JSON: ", err)
 	}
 
 	gzipData, err := GzipCompress(jsonData)
@@ -89,18 +86,20 @@ func (c customClient) doRequestPOST(mtype, name, value string) {
 		SetHeader("Content-Encoding", "gzip").
 		SetHeader("Accept-Encoding", "gzip").
 		SetBody(gzipData).
-		Post(c.endpoint + "/update/")
+		Post(c.endpoint + "/updates/")
 }
 
 func newMetrics() metrics {
-	mapMetrics := map[string]map[string]string{
-		"counter": make(map[string]string),
-		"gauge":   make(map[string]string),
-	}
-	return metrics{mapMetrics: mapMetrics, pollCount: 0}
+	mapMetrics := make(map[metricKey]models.Metrics)
+	arrMetrics := make([]models.Metrics, 0)
+	return metrics{
+		mapMetrics: mapMetrics,
+		arrMetrics: arrMetrics,
+		pollCount:  0}
 }
 
 func (m *metrics) update(rng *rand.Rand) {
+	m.arrMetrics = m.arrMetrics[:0]
 	m.updateSpecificMemStats()
 	m.updateRandomValue(rng)
 	m.updateCounterValue()
@@ -108,97 +107,109 @@ func (m *metrics) update(rng *rand.Rand) {
 
 func (m *metrics) updateSpecificMemStats() {
 
+	searchedFields := map[string]bool{
+		"Alloc":         true,
+		"BuckHashSys":   true,
+		"Frees":         true,
+		"GCCPUFraction": true,
+		"GCSys":         true,
+		"HeapAlloc":     true,
+		"HeapIdle":      true,
+		"HeapObjects":   true,
+		"HeapReleased":  true,
+		"HeapSys":       true,
+		"LastGC":        true,
+		"Lookups":       true,
+		"MCacheInuse":   true,
+		"MCacheSys":     true,
+		"Mallocs":       true,
+		"NextGC":        true,
+		"NumForcedGC":   true,
+		"NumGC":         true,
+		"OtherSys":      true,
+		"PauseTotalNs":  true,
+		"StackInuse":    true,
+		"StackSys":      true,
+		"Sys":           true,
+		"TotalAlloc":    true,
+	}
+
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
 
-	m.mapMetrics["gauge"]["Alloc"] = convertToString(ms.Alloc)
-	m.mapMetrics["gauge"]["BuckHashSys"] = convertToString(ms.BuckHashSys)
-	m.mapMetrics["gauge"]["Frees"] = convertToString(ms.Frees)
-	m.mapMetrics["gauge"]["GCCPUFraction"] = convertToString(ms.GCCPUFraction)
-	m.mapMetrics["gauge"]["GCSys"] = convertToString(ms.GCSys)
-	m.mapMetrics["gauge"]["HeapAlloc"] = convertToString(ms.HeapAlloc)
-	m.mapMetrics["gauge"]["HeapIdle"] = convertToString(ms.HeapIdle)
-	m.mapMetrics["gauge"]["HeapInuse"] = convertToString(ms.HeapInuse)
-	m.mapMetrics["gauge"]["HeapObjects"] = convertToString(ms.HeapObjects)
-	m.mapMetrics["gauge"]["HeapReleased"] = convertToString(ms.HeapReleased)
-	m.mapMetrics["gauge"]["HeapSys"] = convertToString(ms.HeapSys)
-	m.mapMetrics["gauge"]["LastGC"] = convertToString(ms.LastGC)
-	m.mapMetrics["gauge"]["Lookups"] = convertToString(ms.Lookups)
-	m.mapMetrics["gauge"]["MCacheInuse"] = convertToString(ms.MCacheInuse)
-	m.mapMetrics["gauge"]["MCacheSys"] = convertToString(ms.MCacheSys)
-	m.mapMetrics["gauge"]["MSpanInuse"] = convertToString(ms.MSpanInuse)
-	m.mapMetrics["gauge"]["MSpanSys"] = convertToString(ms.MSpanSys)
-	m.mapMetrics["gauge"]["Mallocs"] = convertToString(ms.Mallocs)
-	m.mapMetrics["gauge"]["NextGC"] = convertToString(ms.NextGC)
-	m.mapMetrics["gauge"]["NumForcedGC"] = convertToString(ms.NumForcedGC)
-	m.mapMetrics["gauge"]["NumGC"] = convertToString(ms.NumGC)
-	m.mapMetrics["gauge"]["OtherSys"] = convertToString(ms.OtherSys)
-	m.mapMetrics["gauge"]["PauseTotalNs"] = convertToString(ms.PauseTotalNs)
-	m.mapMetrics["gauge"]["StackInuse"] = convertToString(ms.StackInuse)
-	m.mapMetrics["gauge"]["StackSys"] = convertToString(ms.StackSys)
-	m.mapMetrics["gauge"]["Sys"] = convertToString(ms.Sys)
-	m.mapMetrics["gauge"]["TotalAlloc"] = convertToString(ms.TotalAlloc)
-}
+	v := reflect.ValueOf(&ms).Elem()
 
-func convertWithType(mtype, value string) (any, error) {
+	for i := 0; i < v.NumField(); i++ {
 
-	switch mtype {
-
-	case "counter":
-		v, err := convertToInt64(value)
-		if err != nil {
-			return nil, err
+		id := v.Type().Field(i).Name
+		if _, ok := searchedFields[id]; !ok {
+			continue
 		}
-		return v, nil
 
-	case "gauge":
-		v, err := convertToFloat64(value)
-		if err != nil {
-			return nil, err
+		mtype := "gauge"
+		value := getFloat64(v.Field(i).Interface())
+
+		key := metricKey{id: id, mtype: mtype}
+		metric := models.Metrics{
+			ID:    id,
+			MType: mtype,
+			Value: &value,
 		}
-		return v, nil
+
+		m.mapMetrics[key] = metric
+		m.arrMetrics = append(m.arrMetrics, metric)
 	}
-
-	return -1, nil
 }
 
-func convertToString(value any) string {
-	res := ""
-	switch v := value.(type) {
-	case uint32:
-		res = fmt.Sprintf("%f", float64(v))
-	case uint64:
-		res = fmt.Sprintf("%f", float64(v))
+func getFloat64(value any) float64 {
+	switch i := value.(type) {
 	case float64:
-		res = fmt.Sprintf("%f", v)
+		return float64(i)
+	case float32:
+		return float64(i)
+	case int64:
+		return float64(i)
+	case int32:
+		return float64(i)
+	case uint64:
+		return float64(i)
+	case uint32:
+		return float64(i)
+	default:
+		return -1
 	}
-	return res
-}
-
-func convertToInt64(s string) (int64, error) {
-	value, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		return -1, err
-	}
-	return value, nil
-}
-
-func convertToFloat64(s string) (float64, error) {
-	value, err := strconv.ParseFloat(s, 64)
-	if err != nil {
-		return -1, err
-	}
-	return value, nil
 }
 
 func (m *metrics) updateRandomValue(rng *rand.Rand) {
+	id, mtype := "RandomValue", "gauge"
 	value := float64(rng.Intn(100))
-	m.mapMetrics["gauge"]["RandomValue"] = convertToString(value)
+
+	key := metricKey{id: id, mtype: mtype}
+	metric := models.Metrics{
+		ID:    id,
+		MType: mtype,
+		Value: &value,
+	}
+
+	m.mapMetrics[key] = metric
+	m.arrMetrics = append(m.arrMetrics, metric)
 }
 
 func (m *metrics) updateCounterValue() {
 	m.pollCount++
-	m.mapMetrics["counter"]["PollCount"] = fmt.Sprintf("%d", m.pollCount)
+
+	id, mtype := "PollCount", "counter"
+	value := m.pollCount
+
+	key := metricKey{id: id, mtype: mtype}
+	metric := models.Metrics{
+		ID:    id,
+		MType: mtype,
+		Delta: &value,
+	}
+
+	m.mapMetrics[key] = metric
+	m.arrMetrics = append(m.arrMetrics, metric)
 }
 
 func GzipCompress(data []byte) ([]byte, error) {

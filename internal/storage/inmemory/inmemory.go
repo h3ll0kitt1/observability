@@ -55,6 +55,31 @@ func (ms *MemStorage) Update(metric models.MetricsWithValue) {
 	}
 }
 
+func (ms *MemStorage) UpdateList(list []models.MetricsWithValue) {
+	for _, metric := range list {
+		ms.Update(metric)
+	}
+}
+
+func (ms *MemStorage) GetValue(metric models.MetricsWithValue) (models.MetricsWithValue, bool) {
+	var status bool
+	switch metric.MType {
+	case "counter":
+		value, ok := ms.Counter.mem[metric.ID]
+		if ok {
+			metric.Delta = value
+		}
+		status = ok
+	case "gauge":
+		value, ok := ms.Gauge.mem[metric.ID]
+		if ok {
+			metric.Value = value
+		}
+		status = ok
+	}
+	return metric, status
+}
+
 func (ms *MemStorage) GetList() []*models.MetricsWithValue {
 	ms.Counter.Lock()
 	ms.Gauge.Lock()
@@ -81,25 +106,6 @@ func (ms *MemStorage) GetList() []*models.MetricsWithValue {
 	ms.Counter.Unlock()
 	ms.Gauge.Unlock()
 	return list
-}
-
-func (ms *MemStorage) GetValue(metric models.MetricsWithValue) (models.MetricsWithValue, bool) {
-	var status bool
-	switch metric.MType {
-	case "counter":
-		value, ok := ms.Counter.mem[metric.ID]
-		if ok {
-			metric.Delta = value
-		}
-		status = ok
-	case "gauge":
-		value, ok := ms.Gauge.mem[metric.ID]
-		if ok {
-			metric.Value = value
-		}
-		status = ok
-	}
-	return metric, status
 }
 
 func (ms *MemStorage) Ping() bool {

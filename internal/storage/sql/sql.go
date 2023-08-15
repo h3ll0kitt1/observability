@@ -3,6 +3,7 @@ package sql
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"time"
 
@@ -69,6 +70,42 @@ func (s *SQLStorage) Update(metric models.MetricsWithValue) {
 			log.Printf("Error %s when inserting in gauge table", err)
 		}
 	}
+}
+
+func (s *SQLStorage) UpdateList(list []models.MetricsWithValue) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return
+	}
+
+	defer tx.Rollback()
+
+	for _, metric := range list {
+		switch metric.MType {
+		case "counter":
+			_, err := tx.ExecContext(ctx, `INSERT INTO counter (metric_id, metric_value) 
+										VALUES ($1, $2) 
+										ON CONFLICT (metric_id) DO UPDATE 
+										SET metric_value = EXCLUDED.metric_value + counter.metric_value;`, metric.ID, metric.Delta)
+			if err != nil {
+				log.Printf("Error %s when inserting in counter table", err)
+				return
+			}
+		case "gauge":
+			_, err := tx.ExecContext(ctx, `INSERT INTO gauge (metric_id, metric_value) 
+										VALUES ($1, $2) 
+										ON CONFLICT (metric_id) DO UPDATE 
+										SET metric_value = EXCLUDED.metric_value;`, metric.ID, metric.Value)
+			if err != nil {
+				log.Printf("Error %s when inserting in gauge table", err)
+				return
+			}
+		}
+	}
+	tx.Commit()
 }
 
 func (s *SQLStorage) GetList() []*models.MetricsWithValue {
@@ -144,6 +181,8 @@ func (s *SQLStorage) GetValue(metric models.MetricsWithValue) (models.MetricsWit
 		if err := row.Scan(&value); err != nil {
 			return metric, false
 		}
+		fmt.Println(metric.Delta)
+		fmt.Println(value)
 		metric.Delta = value
 
 	case "gauge":
