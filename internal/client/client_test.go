@@ -9,7 +9,7 @@ func TestMetrics_updateSpecificMemStats(t *testing.T) {
 	m := newMetrics()
 	m.updateSpecificMemStats()
 
-	want := 24
+	want := 27
 	if got := len(m.mapMetrics); got != want {
 		t.Errorf("updateSpecificMemStats() = %v, want %v", got, want)
 	}
