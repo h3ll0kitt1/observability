@@ -1,7 +1,9 @@
 package inmemory
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/h3ll0kitt1/observability/internal/models"
 )
@@ -58,11 +60,14 @@ func TestMemStorage_Update(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
 			ms := NewStorage()
 			ms.Counter.mem["testCounter"] = int64(1)
 			ms.Gauge.mem["testGauge"] = float64(1.23456)
 
-			ms.Update(tt.metric)
+			ms.Update(ctx, tt.metric)
 
 			if tt.metric.MType == "counter" {
 				if got, ok := ms.Counter.mem[tt.metric.ID]; got != tt.wantValue && ok != tt.wantStatus {
@@ -83,11 +88,10 @@ func TestMemStorage_Update(t *testing.T) {
 func TestMemStorage_GetValue(t *testing.T) {
 
 	tests := []struct {
-		name       string
-		mtype      string
-		metric     models.MetricsWithValue
-		wantValue  any
-		wantStatus bool
+		name      string
+		mtype     string
+		metric    models.MetricsWithValue
+		wantValue any
 	}{
 		{
 			name: "get existing gauge",
@@ -95,8 +99,7 @@ func TestMemStorage_GetValue(t *testing.T) {
 				ID:    "testGauge",
 				MType: "gauge",
 			},
-			wantValue:  "1",
-			wantStatus: true,
+			wantValue: float64(1),
 		},
 		{
 			name: "get existing counter",
@@ -104,8 +107,7 @@ func TestMemStorage_GetValue(t *testing.T) {
 				ID:    "testCounter",
 				MType: "counter",
 			},
-			wantValue:  "1",
-			wantStatus: true,
+			wantValue: int64(1),
 		},
 		{
 			name: "get wrong gauge",
@@ -113,8 +115,7 @@ func TestMemStorage_GetValue(t *testing.T) {
 				ID:    "wrongGauge",
 				MType: "gauge",
 			},
-			wantValue:  "0",
-			wantStatus: false,
+			wantValue: float64(0),
 		},
 		{
 			name: "get wrong counter",
@@ -122,22 +123,29 @@ func TestMemStorage_GetValue(t *testing.T) {
 				ID:    "wrongCounter",
 				MType: "counter",
 			},
-			wantValue:  "0",
-			wantStatus: false,
+			wantValue: int64(0),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
 			ms := NewStorage()
 			ms.Counter.mem["testCounter"] = int64(1)
 			ms.Gauge.mem["testGauge"] = float64(1.0)
 
-			if gotValue, gotStatus := ms.GetValue(tt.metric); gotValue != tt.wantValue &&
-				gotStatus != tt.wantStatus {
-				t.Errorf("GetValue() = %v, want %v ", gotValue, tt.wantValue)
+			gotMetric, _ := ms.Get(ctx, tt.metric)
+			if gotMetric.MType == "counter" && gotMetric.Delta != tt.wantValue {
+				t.Errorf("GetValue() = %v, want %v ", gotMetric.Delta, tt.wantValue)
 			}
+
+			if gotMetric.MType == "gauge" && gotMetric.Value != tt.wantValue {
+				t.Errorf("GetValue() = %v, want %v ", gotMetric.Value, tt.wantValue)
+			}
+
 		})
 	}
 }

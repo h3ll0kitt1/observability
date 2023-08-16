@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"log"
 	"math/rand"
 	"reflect"
@@ -14,6 +15,10 @@ import (
 
 	"github.com/h3ll0kitt1/observability/internal/config"
 	"github.com/h3ll0kitt1/observability/internal/models"
+)
+
+var (
+	ErrServerUnavailable = errors.New("Error doing POST request")
 )
 
 type customClient struct {
@@ -65,28 +70,36 @@ func newCustomClient(cfg *config.ClientConfig) customClient {
 
 func (m *metrics) sendToServer(client customClient) {
 	if len(m.arrMetrics) != 0 {
-		client.doRequestPOST(m.arrMetrics)
+		err := client.doRequestPOST(m.arrMetrics)
+		if err != nil {
+			log.Printf("%s\n", err)
+		}
 	}
 }
 
-func (c customClient) doRequestPOST(metrics []models.Metrics) {
+func (c customClient) doRequestPOST(metrics []models.Metrics) error {
 
 	jsonData, err := json.Marshal(metrics)
 	if err != nil {
-		log.Fatal("Error converting slice of metrics to JSON: ", err)
+		return errors.New("Error converting slice of metrics to JSON")
 	}
 
 	gzipData, err := GzipCompress(jsonData)
 	if err != nil {
-		log.Fatal("Error compressing JSON to GZIP: ", err)
+		return errors.New("Error compressing JSON to GZIP")
 	}
 
-	c.httpClient.R().
+	_, err = c.httpClient.R().
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
 		SetHeader("Accept-Encoding", "gzip").
 		SetBody(gzipData).
 		Post(c.endpoint + "/updates/")
+
+	if err != nil {
+		return ErrServerUnavailable
+	}
+	return nil
 }
 
 func newMetrics() metrics {

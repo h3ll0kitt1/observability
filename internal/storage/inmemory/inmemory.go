@@ -1,6 +1,8 @@
 package inmemory
 
 import (
+	"context"
+	"errors"
 	"sync"
 
 	"github.com/h3ll0kitt1/observability/internal/models"
@@ -42,27 +44,9 @@ func NewMemGauge() *MemGauge {
 	return &mg
 }
 
-func (ms *MemStorage) Update(metric models.MetricsWithValue) {
-	switch metric.MType {
-	case "counter":
-		ms.Counter.Lock()
-		ms.Counter.mem[metric.ID] += metric.Delta
-		ms.Counter.Unlock()
-	case "gauge":
-		ms.Gauge.Lock()
-		ms.Gauge.mem[metric.ID] = metric.Value
-		ms.Gauge.Unlock()
-	}
-}
-
-func (ms *MemStorage) UpdateList(list []models.MetricsWithValue) {
-	for _, metric := range list {
-		ms.Update(metric)
-	}
-}
-
-func (ms *MemStorage) GetValue(metric models.MetricsWithValue) (models.MetricsWithValue, bool) {
+func (ms *MemStorage) Get(ctx context.Context, metric models.MetricsWithValue) (models.MetricsWithValue, error) {
 	var status bool
+
 	switch metric.MType {
 	case "counter":
 		value, ok := ms.Counter.mem[metric.ID]
@@ -77,17 +61,21 @@ func (ms *MemStorage) GetValue(metric models.MetricsWithValue) (models.MetricsWi
 		}
 		status = ok
 	}
-	return metric, status
+
+	if status != true {
+		return metric, errors.New("Uknown metric")
+	}
+	return metric, nil
 }
 
-func (ms *MemStorage) GetList() []*models.MetricsWithValue {
+func (ms *MemStorage) GetList(ctx context.Context) ([]models.MetricsWithValue, error) {
 	ms.Counter.Lock()
 	ms.Gauge.Lock()
 
-	list := make([]*models.MetricsWithValue, 0)
+	list := make([]models.MetricsWithValue, 0)
 
 	for name, value := range ms.Counter.mem {
-		metric := &models.MetricsWithValue{
+		metric := models.MetricsWithValue{
 			ID:    name,
 			MType: "counter",
 			Delta: value,
@@ -96,7 +84,7 @@ func (ms *MemStorage) GetList() []*models.MetricsWithValue {
 	}
 
 	for name, value := range ms.Gauge.mem {
-		metric := &models.MetricsWithValue{
+		metric := models.MetricsWithValue{
 			ID:    name,
 			MType: "gauge",
 			Value: value,
@@ -105,9 +93,31 @@ func (ms *MemStorage) GetList() []*models.MetricsWithValue {
 	}
 	ms.Counter.Unlock()
 	ms.Gauge.Unlock()
-	return list
+
+	return list, nil
 }
 
-func (ms *MemStorage) Ping() bool {
-	return true
+func (ms *MemStorage) Update(ctx context.Context, metric models.MetricsWithValue) error {
+	switch metric.MType {
+	case "counter":
+		ms.Counter.Lock()
+		ms.Counter.mem[metric.ID] += metric.Delta
+		ms.Counter.Unlock()
+	case "gauge":
+		ms.Gauge.Lock()
+		ms.Gauge.mem[metric.ID] = metric.Value
+		ms.Gauge.Unlock()
+	}
+	return nil
+}
+
+func (ms *MemStorage) UpdateList(ctx context.Context, list []models.MetricsWithValue) error {
+	for _, metric := range list {
+		ms.Update(ctx, metric)
+	}
+	return nil
+}
+
+func (ms *MemStorage) Ping() error {
+	return nil
 }

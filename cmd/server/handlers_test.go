@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -13,6 +15,7 @@ import (
 	"github.com/h3ll0kitt1/observability/internal/config"
 	"github.com/h3ll0kitt1/observability/internal/logger"
 	"github.com/h3ll0kitt1/observability/internal/models"
+	"github.com/h3ll0kitt1/observability/internal/storage/file"
 	"github.com/h3ll0kitt1/observability/internal/storage/inmemory"
 )
 
@@ -31,6 +34,9 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string) (*http.
 }
 
 func TestRouterGet(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
 	s := inmemory.NewStorage()
 	r := chi.NewRouter()
 	l := logger.NewLogger()
@@ -46,14 +52,16 @@ func TestRouterGet(t *testing.T) {
 		MType: "gauge",
 		Value: float64(2.0),
 	}
-	s.Update(testGauge)
+
+	s.Update(ctx, testGauge)
 
 	testCounter := models.MetricsWithValue{
 		ID:    "testCounter",
 		MType: "counter",
 		Delta: int64(2),
 	}
-	s.Update(testCounter)
+
+	s.Update(ctx, testCounter)
 
 	app.setRouters()
 
@@ -89,13 +97,14 @@ func TestRouterPost(t *testing.T) {
 	s := inmemory.NewStorage()
 	r := chi.NewRouter()
 	l := logger.NewLogger()
+	b := file.NewStorage(cfg.FileStoragePath)
 
 	app := &application{
-		storage:    s,
-		router:     r,
-		logger:     l,
-		backupFile: cfg.FileStoragePath,
-		backupTime: cfg.StoreInterval,
+		config:  cfg,
+		storage: s,
+		backup:  b,
+		router:  r,
+		logger:  l,
 	}
 
 	app.setRouters()
