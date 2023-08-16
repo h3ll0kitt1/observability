@@ -19,8 +19,6 @@ func (app *application) getList(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	var list strings.Builder
-
-	// здесь надо добавить retrieble
 	metrics, err := app.storage.GetList(ctx)
 	if err != nil {
 		app.logger.Infow("error",
@@ -73,7 +71,6 @@ func (app *application) getValue(w http.ResponseWriter, r *http.Request) {
 	)
 
 	metricWithValue := models.ToMetricWithValue(metric)
-	// здесь надо добавить retrieble
 	metricWithValue, err = app.storage.Get(ctx, metricWithValue)
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
@@ -102,7 +99,6 @@ func (app *application) getCounter(w http.ResponseWriter, r *http.Request) {
 		MType: "counter",
 	}
 
-	// здесь надо добавить retrieble
 	metric, err := app.storage.Get(ctx, metric)
 	if err != nil {
 		app.logger.Infow("error",
@@ -129,7 +125,6 @@ func (app *application) getGauge(w http.ResponseWriter, r *http.Request) {
 		MType: "gauge",
 	}
 
-	// здесь надо добавить retrieble
 	metric, err := app.storage.Get(ctx, metric)
 	if err != nil {
 
