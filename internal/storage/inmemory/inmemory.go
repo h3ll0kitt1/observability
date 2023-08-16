@@ -62,8 +62,8 @@ func (ms *MemStorage) Get(ctx context.Context, metric models.MetricsWithValue) (
 		status = ok
 	}
 
-	if status != true {
-		return metric, errors.New("Uknown metric")
+	if !status {
+		return metric, errors.New("unknown metric")
 	}
 	return metric, nil
 }

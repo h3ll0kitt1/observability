@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	ErrServerUnavailable = errors.New("Error doing POST request")
+	ErrServerUnavailable = errors.New("error doing post request")
 )
 
 type customClient struct {
@@ -81,12 +81,12 @@ func (c customClient) doRequestPOST(metrics []models.Metrics) error {
 
 	jsonData, err := json.Marshal(metrics)
 	if err != nil {
-		return errors.New("Error converting slice of metrics to JSON")
+		return errors.New("error converting slice of metrics to json")
 	}
 
 	gzipData, err := GzipCompress(jsonData)
 	if err != nil {
-		return errors.New("Error compressing JSON to GZIP")
+		return errors.New("error compressing json to gzip")
 	}
 
 	_, err = c.httpClient.R().

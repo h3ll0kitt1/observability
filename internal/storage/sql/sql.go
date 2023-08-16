@@ -51,7 +51,7 @@ func (s *SQLStorage) Get(ctx context.Context, metric models.MetricsWithValue) (m
 		row := s.db.QueryRowContext(ctx, "SELECT metric_value FROM counter WHERE metric_id = $1", metric.ID)
 
 		if err := row.Scan(&value); err != nil {
-			return metric, errors.New("Unknown metric name")
+			return metric, errors.New("unknown metric name")
 		}
 		metric.Delta = value
 
@@ -60,7 +60,7 @@ func (s *SQLStorage) Get(ctx context.Context, metric models.MetricsWithValue) (m
 		row := s.db.QueryRowContext(ctx, "SELECT metric_value FROM gauge WHERE metric_id = $1", metric.ID)
 
 		if err := row.Scan(&value); err != nil {
-			return metric, errors.New("Unknown metric name")
+			return metric, errors.New("unknown metric name")
 		}
 		metric.Value = value
 	}
