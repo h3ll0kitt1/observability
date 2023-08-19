@@ -1,134 +1,438 @@
 package main
 
 import (
-	"context"
-	"io"
+	//"context"
+	// "io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
+	// "time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-resty/resty/v2"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	//	"github.com/stretchr/testify/require"
 
-	"github.com/h3ll0kitt1/observability/internal/config"
+	//"github.com/h3ll0kitt1/observability/internal/config"
+	//"github.com/h3ll0kitt1/observability/internal/controller"
 	"github.com/h3ll0kitt1/observability/internal/logger"
+	"github.com/h3ll0kitt1/observability/internal/mocks"
 	"github.com/h3ll0kitt1/observability/internal/models"
-	"github.com/h3ll0kitt1/observability/internal/storage/file"
-	"github.com/h3ll0kitt1/observability/internal/storage/inmemory"
 )
 
-func testRequest(t *testing.T, ts *httptest.Server, method, path string) (*http.Response, string) {
-	req, err := http.NewRequest(method, ts.URL+path, nil)
-	require.NoError(t, err)
-	req.Header.Set("Accept-Encoding", "identity")
-	resp, err := ts.Client().Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
+func TestHandler_getList(t *testing.T) {
 
-	respBody, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	return resp, string(respBody)
-}
+	sm := mocks.NewMockStorageManager(ctrl)
 
-func TestRouterGet(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	s := inmemory.NewStorage()
 	r := chi.NewRouter()
 	l := logger.NewLogger()
 
 	app := &application{
-		storage: s,
-		router:  r,
-		logger:  l,
+		storageManager: sm,
+		router:         r,
+		logger:         l,
+	}
+	app.setRouters()
+
+	handler := http.HandlerFunc(app.getList)
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	list := []models.MetricsWithValue{
+		{
+			ID:    "testCounter",
+			MType: "counter",
+			Delta: int64(1),
+		},
+		{
+			ID:    "testGauge",
+			MType: "gauge",
+			Value: float64(2),
+		},
 	}
 
-	testGauge := models.MetricsWithValue{
-		ID:    "testGauge",
-		MType: "gauge",
-		Value: float64(2.0),
+	sm.EXPECT().
+		GetList(gomock.Any()).
+		Return(list, nil)
+
+	testCases := []struct {
+		name         string
+		method       string
+		body         string
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			name:         "method_get",
+			method:       http.MethodGet,
+			expectedCode: http.StatusOK,
+			expectedBody: "testCounter: 1\ntestGauge: 2",
+		},
 	}
 
-	s.Update(ctx, testGauge)
+	for _, tc := range testCases {
+		t.Run(tc.method, func(t *testing.T) {
+			req := resty.New().R()
+			req.Method = tc.method
+			req.URL = srv.URL
 
-	testCounter := models.MetricsWithValue{
+			if len(tc.body) > 0 {
+				req.SetHeader("Content-Type", "application/json")
+				req.SetBody(tc.body)
+			}
+
+			resp, err := req.Send()
+			assert.NoError(t, err, "error making HTTP request")
+
+			assert.Equal(t, tc.expectedCode, resp.StatusCode(), "Response code didn't match expected")
+			if tc.expectedBody != "" {
+				assert.Regexp(t, tc.expectedBody, string(resp.Body()))
+			}
+		})
+	}
+}
+
+func TestHandler_getValue(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	sm := mocks.NewMockStorageManager(ctrl)
+
+	r := chi.NewRouter()
+	l := logger.NewLogger()
+
+	app := &application{
+		storageManager: sm,
+		router:         r,
+		logger:         l,
+	}
+	app.setRouters()
+
+	handler := http.HandlerFunc(app.getValue)
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	counterMetric := models.MetricsWithValue{
 		ID:    "testCounter",
 		MType: "counter",
-		Delta: int64(2),
+		Delta: int64(1),
 	}
 
-	s.Update(ctx, testCounter)
+	sm.EXPECT().
+		Get(gomock.Any(), gomock.Any()).
+		Return(counterMetric, nil)
 
-	app.setRouters()
-
-	ts := httptest.NewServer(app.router)
-	defer ts.Close()
-
-	var tests = []struct {
-		url    string
-		want   string
-		status int
+	testCases := []struct {
+		name         string
+		path         string
+		method       string
+		body         string
+		expectedCode int
+		expectedBody string
 	}{
-		// OK
-		{"/value/counter/testCounter", "2", http.StatusOK},
-		{"/value/gauge/testGauge", "2", http.StatusOK},
-
-		// WRONG
-		{"/value/counter/unknownCounter", "", http.StatusNotFound},
-		{"/value/gauge/unknownGauge", "", http.StatusNotFound},
+		{
+			name:         "method_post",
+			path:         "/value/",
+			method:       http.MethodPost,
+			body:         `{"id":"testCounter","type":"counter"}`,
+			expectedCode: http.StatusOK,
+			expectedBody: "1",
+		},
+		{
+			name:         "wrong format",
+			path:         "/value/",
+			method:       http.MethodPost,
+			body:         `id:"testCounter", type:"counter"`,
+			expectedCode: http.StatusInternalServerError,
+			expectedBody: "",
+		},
 	}
 
-	for _, tt := range tests {
-		resp, get := testRequest(t, ts, "GET", tt.url)
-		defer resp.Body.Close()
-		assert.Equal(t, tt.status, resp.StatusCode)
-		assert.Equal(t, tt.want, get)
+	for _, tc := range testCases {
+		t.Run(tc.method, func(t *testing.T) {
+			req := resty.New().R()
+			req.Method = tc.method
+			req.URL = srv.URL
+			req.URL += tc.path
+
+			if len(tc.body) > 0 {
+				req.SetHeader("Content-Type", "application/json")
+				req.SetBody(tc.body)
+			}
+
+			resp, err := req.Send()
+			assert.NoError(t, err, "error making HTTP request")
+
+			assert.Equal(t, tc.expectedCode, resp.StatusCode(), "Response code didn't match expected")
+			if tc.expectedBody != "" {
+				assert.Regexp(t, tc.expectedBody, string(resp.Body()))
+			}
+		})
 	}
 }
 
-func TestRouterPost(t *testing.T) {
+func TestHandler_getCounter(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	cfg := config.NewServerConfig()
+	sm := mocks.NewMockStorageManager(ctrl)
 
-	s := inmemory.NewStorage()
 	r := chi.NewRouter()
 	l := logger.NewLogger()
-	b := file.NewStorage(cfg.FileStoragePath)
 
 	app := &application{
-		config:  cfg,
-		storage: s,
-		backup:  b,
-		router:  r,
-		logger:  l,
+		storageManager: sm,
+		router:         r,
+		logger:         l,
 	}
-
 	app.setRouters()
 
-	ts := httptest.NewServer(r)
-	defer ts.Close()
+	handler := http.HandlerFunc(app.getCounter)
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
 
-	var tests = []struct {
-		url    string
-		status int
+	counterMetric := models.MetricsWithValue{
+		ID:    "testCounter",
+		MType: "counter",
+		Delta: int64(1),
+	}
+
+	sm.EXPECT().
+		Get(gomock.Any(), gomock.Any()).
+		Return(counterMetric, nil)
+
+	testCases := []struct {
+		name         string
+		method       string
+		body         string
+		expectedCode int
+		expectedBody string
 	}{
-		// OK
-		{"/update/gauge/testGauge/100", http.StatusOK},
-		{"/update/counter/testCounter/100", http.StatusOK},
-
-		// WRONG
-		{"/update/counter/testCounter/100.0", http.StatusBadRequest},
-		{"/update/counter/", http.StatusNotFound},
-		{"/update/wrongtype/testCounter/100", http.StatusBadRequest},
+		{
+			name:         "method_get",
+			method:       http.MethodGet,
+			expectedCode: http.StatusOK,
+			expectedBody: "1",
+		},
 	}
 
-	for _, tt := range tests {
-		resp, _ := testRequest(t, ts, "POST", tt.url)
-		defer resp.Body.Close()
-		assert.Equal(t, tt.status, resp.StatusCode)
+	for _, tc := range testCases {
+		t.Run(tc.method, func(t *testing.T) {
+			req := resty.New().R()
+			req.Method = tc.method
+			req.URL = srv.URL
+
+			if len(tc.body) > 0 {
+				req.SetHeader("Content-Type", "application/json")
+				req.SetBody(tc.body)
+			}
+
+			resp, err := req.Send()
+			assert.NoError(t, err, "error making HTTP request")
+
+			assert.Equal(t, tc.expectedCode, resp.StatusCode(), "Response code didn't match expected")
+			if tc.expectedBody != "" {
+				assert.Regexp(t, tc.expectedBody, string(resp.Body()))
+			}
+		})
 	}
+}
+
+func TestHandler_getGauge(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	sm := mocks.NewMockStorageManager(ctrl)
+
+	r := chi.NewRouter()
+	l := logger.NewLogger()
+
+	app := &application{
+		storageManager: sm,
+		router:         r,
+		logger:         l,
+	}
+	app.setRouters()
+
+	handler := http.HandlerFunc(app.getGauge)
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	gaugeMetric := models.MetricsWithValue{
+		ID:    "testGauge",
+		MType: "gauge",
+		Value: float64(1),
+	}
+
+	sm.EXPECT().
+		Get(gomock.Any(), gomock.Any()).
+		Return(gaugeMetric, nil)
+
+	testCases := []struct {
+		name         string
+		method       string
+		body         string
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			name:         "method_get",
+			method:       http.MethodGet,
+			expectedCode: http.StatusOK,
+			expectedBody: "1",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.method, func(t *testing.T) {
+			req := resty.New().R()
+			req.Method = tc.method
+			req.URL = srv.URL
+
+			if len(tc.body) > 0 {
+				req.SetHeader("Content-Type", "application/json")
+				req.SetBody(tc.body)
+			}
+
+			resp, err := req.Send()
+			assert.NoError(t, err, "error making HTTP request")
+
+			assert.Equal(t, tc.expectedCode, resp.StatusCode(), "Response code didn't match expected")
+			if tc.expectedBody != "" {
+				assert.Regexp(t, tc.expectedBody, string(resp.Body()))
+			}
+		})
+	}
+}
+
+func TestHandler_updateList(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	sm := mocks.NewMockStorageManager(ctrl)
+
+	r := chi.NewRouter()
+	l := logger.NewLogger()
+
+	app := &application{
+		storageManager: sm,
+		router:         r,
+		logger:         l,
+	}
+	app.setRouters()
+
+	handler := http.HandlerFunc(app.updateList)
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	sm.EXPECT().
+		UpdateList(gomock.Any(), gomock.Any()).
+		Return(nil)
+
+	testCases := []struct {
+		name         string
+		path         string
+		method       string
+		body         string
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			name:         "method_post",
+			path:         "/updates/",
+			method:       http.MethodPost,
+			body:         `[{"id":"testCounter","type":"counter","delta":1},{"id":"testGauge","type":"gauge","value":1}]`,
+			expectedCode: http.StatusOK,
+			expectedBody: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.method, func(t *testing.T) {
+			req := resty.New().R()
+			req.Method = tc.method
+			req.URL = srv.URL
+			req.URL += tc.path
+
+			if len(tc.body) > 0 {
+				req.SetHeader("Content-Type", "application/json")
+				req.SetBody(tc.body)
+			}
+
+			resp, err := req.Send()
+			assert.NoError(t, err, "error making HTTP request")
+
+			assert.Equal(t, tc.expectedCode, resp.StatusCode(), "Response code didn't match expected")
+			if tc.expectedBody != "" {
+				assert.Regexp(t, tc.expectedBody, string(resp.Body()))
+			}
+		})
+	}
+}
+
+func TestHandler_updateValue(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	sm := mocks.NewMockStorageManager(ctrl)
+
+	r := chi.NewRouter()
+	l := logger.NewLogger()
+
+	app := &application{
+		storageManager: sm,
+		router:         r,
+		logger:         l,
+	}
+	app.setRouters()
+
+	handler := http.HandlerFunc(app.updateValue)
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	sm.EXPECT().
+		Update(gomock.Any(), gomock.Any()).
+		Return(nil)
+
+	testCases := []struct {
+		name         string
+		method       string
+		body         string
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			name:         "method_post",
+			method:       http.MethodPost,
+			body:         `{"id":"testCounter","type":"counter","delta":1}`,
+			expectedCode: http.StatusOK,
+			expectedBody: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.method, func(t *testing.T) {
+			req := resty.New().R()
+			req.Method = tc.method
+			req.URL = srv.URL
+
+			if len(tc.body) > 0 {
+				req.SetHeader("Content-Type", "application/json")
+				req.SetBody(tc.body)
+			}
+
+			resp, err := req.Send()
+			assert.NoError(t, err, "error making HTTP request")
+
+			assert.Equal(t, tc.expectedCode, resp.StatusCode(), "Response code didn't match expected")
+			if tc.expectedBody != "" {
+				assert.Regexp(t, tc.expectedBody, string(resp.Body()))
+			}
+		})
+	}
+
 }

@@ -4,7 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
+	//"fmt"
+	//"log"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -17,10 +18,10 @@ type SQLStorage struct {
 	db *sql.DB
 }
 
-func NewStorage(cfg *config.ServerConfig) *SQLStorage {
+func NewStorage(cfg *config.ServerConfig) (*SQLStorage, error) {
 	db, err := sql.Open("pgx", cfg.Database)
 	if err != nil {
-		log.Fatalf("Error %s open database", err)
+		return nil, err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -31,7 +32,7 @@ func NewStorage(cfg *config.ServerConfig) *SQLStorage {
 		metric_value bigint not null)`
 	_, err = db.ExecContext(ctx, query)
 	if err != nil {
-		log.Fatalf("Error %s when creating counter table", err)
+		return nil, err
 	}
 
 	query = `CREATE TABLE IF NOT EXISTS gauge(
@@ -39,9 +40,9 @@ func NewStorage(cfg *config.ServerConfig) *SQLStorage {
 		metric_value double precision not null)`
 	_, err = db.ExecContext(ctx, query)
 	if err != nil {
-		log.Fatalf("Error %s when creating gauge table", err)
+		return nil, err
 	}
-	return &SQLStorage{db: db}
+	return &SQLStorage{db: db}, nil
 }
 
 func (s *SQLStorage) Get(ctx context.Context, metric models.MetricsWithValue) (models.MetricsWithValue, error) {
@@ -181,3 +182,18 @@ func (s *SQLStorage) Ping() error {
 	}
 	return nil
 }
+
+// func retry(attempts int, sleep time.Duration, f func() error) error {
+// 	for i := 0; i < attempts; i++ {
+// 		if i > 0 {
+// 			log.Println("retrying after error:", err)
+// 			time.Sleep(sleep)
+// 			sleep += 2
+// 		}
+// 		err = f()
+// 		if err == nil {
+// 			return nil
+// 		}
+// 	}
+// 	return fmt.Errorf("after %d attempts, last error: %s", attempts, err)
+// }

@@ -49,17 +49,21 @@ func (ms *MemStorage) Get(ctx context.Context, metric models.MetricsWithValue) (
 
 	switch metric.MType {
 	case "counter":
+		ms.Counter.Lock()
 		value, ok := ms.Counter.mem[metric.ID]
 		if ok {
 			metric.Delta = value
 		}
 		status = ok
+		ms.Counter.Unlock()
 	case "gauge":
+		ms.Gauge.Lock()
 		value, ok := ms.Gauge.mem[metric.ID]
 		if ok {
 			metric.Value = value
 		}
 		status = ok
+		ms.Gauge.Unlock()
 	}
 
 	if !status {

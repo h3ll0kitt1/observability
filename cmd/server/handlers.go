@@ -1,13 +1,11 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -15,13 +13,10 @@ import (
 )
 
 func (app *application) getList(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
 	var list strings.Builder
-	metrics, err := app.storage.GetList(ctx)
+	metrics, err := app.storageManager.GetList(r.Context())
 	if err != nil {
-		app.logger.Infow("error",
+		app.logger.Errorw("error",
 			"get list", err,
 		)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -45,9 +40,10 @@ func (app *application) ping(w http.ResponseWriter, r *http.Request) {
 
 	if app.config.Database == "" {
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
-	if err := app.storage.Ping(); err != nil {
+	if err := app.storageManager.Ping(); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -56,9 +52,6 @@ func (app *application) ping(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) getValue(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
 	var metric models.Metrics
 	err := json.NewDecoder(r.Body).Decode(&metric)
 	if err != nil {
@@ -71,7 +64,7 @@ func (app *application) getValue(w http.ResponseWriter, r *http.Request) {
 	)
 
 	metricWithValue := models.ToMetricWithValue(metric)
-	metricWithValue, err = app.storage.Get(ctx, metricWithValue)
+	metricWithValue, err = app.storageManager.Get(r.Context(), metricWithValue)
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -89,19 +82,15 @@ func (app *application) getValue(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) getCounter(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
 	name := chi.URLParam(r, "name")
-
 	metric := models.MetricsWithValue{
 		ID:    name,
 		MType: "counter",
 	}
 
-	metric, err := app.storage.Get(ctx, metric)
+	metric, err := app.storageManager.Get(r.Context(), metric)
 	if err != nil {
-		app.logger.Infow("error",
+		app.logger.Errorw("error",
 			"get counter", err,
 		)
 		w.WriteHeader(http.StatusNotFound)
@@ -115,20 +104,16 @@ func (app *application) getCounter(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) getGauge(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
 	name := chi.URLParam(r, "name")
-
 	metric := models.MetricsWithValue{
 		ID:    name,
 		MType: "gauge",
 	}
 
-	metric, err := app.storage.Get(ctx, metric)
+	metric, err := app.storageManager.Get(r.Context(), metric)
 	if err != nil {
 
-		app.logger.Infow("error",
+		app.logger.Errorw("error",
 			"get gauge", err,
 		)
 
@@ -143,9 +128,6 @@ func (app *application) getGauge(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) updateList(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
 	var list []models.Metrics
 	if err := json.NewDecoder(r.Body).Decode(&list); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -158,9 +140,9 @@ func (app *application) updateList(w http.ResponseWriter, r *http.Request) {
 		listWithValue = append(listWithValue, metricWithValue)
 	}
 
-	if err := app.storage.UpdateList(ctx, listWithValue); err != nil {
+	if err := app.storageManager.UpdateList(r.Context(), listWithValue); err != nil {
 
-		app.logger.Infow("error",
+		app.logger.Errorw("error",
 			"update list", err,
 		)
 
@@ -168,17 +150,10 @@ func (app *application) updateList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if app.config.StoreInterval == 0 {
-		app.flush()
-	}
-
 	w.WriteHeader(http.StatusOK)
 }
 
 func (app *application) updateValue(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
 	var metric models.Metrics
 	err := json.NewDecoder(r.Body).Decode(&metric)
 	if err != nil {
@@ -187,18 +162,14 @@ func (app *application) updateValue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	metricWithValue := models.ToMetricWithValue(metric)
-	if err := app.storage.Update(ctx, metricWithValue); err != nil {
+	if err := app.storageManager.Update(r.Context(), metricWithValue); err != nil {
 
-		app.logger.Infow("error",
+		app.logger.Errorw("error",
 			"update value", err,
 		)
 
 		w.WriteHeader(http.StatusInternalServerError)
 		return
-	}
-
-	if app.config.StoreInterval == 0 {
-		app.flush()
 	}
 
 	app.logger.Infow("updated value",
@@ -216,9 +187,6 @@ func (app *application) updateValue(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) updateCounter(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
 	name := chi.URLParam(r, "name")
 	valueStr := chi.URLParam(r, "value")
 
@@ -233,8 +201,8 @@ func (app *application) updateCounter(w http.ResponseWriter, r *http.Request) {
 		Delta: value,
 	}
 
-	if err := app.storage.Update(ctx, metric); err != nil {
-		app.logger.Infow("error",
+	if err := app.storageManager.Update(r.Context(), metric); err != nil {
+		app.logger.Errorw("error",
 			"update counter", err,
 		)
 
@@ -242,16 +210,10 @@ func (app *application) updateCounter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if app.config.StoreInterval == 0 {
-		app.flush()
-	}
 	w.WriteHeader(http.StatusOK)
 }
 
 func (app *application) updateGauge(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
 	name := chi.URLParam(r, "name")
 	valueStr := chi.URLParam(r, "value")
 
@@ -266,8 +228,8 @@ func (app *application) updateGauge(w http.ResponseWriter, r *http.Request) {
 		Value: value,
 	}
 
-	if err := app.storage.Update(ctx, metric); err != nil {
-		app.logger.Infow("error",
+	if err := app.storageManager.Update(r.Context(), metric); err != nil {
+		app.logger.Errorw("error",
 			"update gauge", err,
 		)
 
@@ -275,9 +237,6 @@ func (app *application) updateGauge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if app.config.StoreInterval == 0 {
-		app.flush()
-	}
 	w.WriteHeader(http.StatusOK)
 }
 
