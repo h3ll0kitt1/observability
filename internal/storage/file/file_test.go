@@ -2,7 +2,6 @@ package file
 
 import (
 	"context"
-	"io/ioutil"
 	"log"
 	"os"
 	"reflect"
@@ -13,7 +12,7 @@ import (
 )
 
 func TestFileStorage_GetList(t *testing.T) {
-	file, err := ioutil.TempFile("/tmp", "test")
+	file, err := os.CreateTemp("/tmp", "test")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -57,7 +56,7 @@ func TestFileStorage_GetList(t *testing.T) {
 }
 
 func TestFileStorage_UpdateList(t *testing.T) {
-	file, err := ioutil.TempFile("/tmp", "test")
+	file, err := os.CreateTemp("/tmp", "test")
 	if err != nil {
 		log.Fatal(err)
 	}

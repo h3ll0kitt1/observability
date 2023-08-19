@@ -24,7 +24,6 @@ func (c *SyncController) Load() error {
 }
 
 func (c *SyncController) Run() {
-	return
 }
 
 func (c *SyncController) Set(newMainStorage MainStorage) {
