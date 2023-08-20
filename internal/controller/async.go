@@ -28,7 +28,7 @@ func (c *AsyncController) Load() error {
 func (c *AsyncController) Run() {
 	ticker := time.NewTicker(c.time)
 	for range ticker.C {
-		c.Flush()
+		c.flush()
 	}
 }
 
@@ -70,11 +70,27 @@ func (c *AsyncController) Ping() error {
 	return c.storage.Ping()
 }
 
-func (c *AsyncController) Flush() error {
+func (c *AsyncController) SetRetryCount(attempts int) {
+	c.storage.SetRetryCount(attempts)
+	c.backup.SetRetryCount(attempts)
+}
+
+func (c *AsyncController) SetRetryStartWaitTime(sleep time.Duration) {
+	c.storage.SetRetryStartWaitTime(sleep)
+	c.backup.SetRetryStartWaitTime(sleep)
+}
+
+func (c *AsyncController) SetRetryIncreseWaitTime(delta time.Duration) {
+	c.storage.SetRetryIncreseWaitTime(delta)
+	c.backup.SetRetryIncreseWaitTime(delta)
+}
+
+func (c *AsyncController) flush() error {
 	list, err := c.storage.GetList(context.Background())
 	if err != nil {
 		return err
 	}
+
 	if err := c.backup.UpdateList(context.Background(), list); err != nil {
 		return err
 	}

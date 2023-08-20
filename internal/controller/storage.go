@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	"github.com/h3ll0kitt1/observability/internal/models"
 )
@@ -17,4 +18,8 @@ type MainStorage interface {
 type BackupStorage interface {
 	GetList(ctx context.Context) ([]models.MetricsWithValue, error)
 	UpdateList(ctx context.Context, list []models.MetricsWithValue) error
+
+	SetRetryCount(attempts int)
+	SetRetryStartWaitTime(sleep time.Duration)
+	SetRetryIncreseWaitTime(delta time.Duration)
 }

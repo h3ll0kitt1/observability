@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	//"fmt"
-	//"log"
+	"fmt"
 	"time"
 
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/h3ll0kitt1/observability/internal/config"
@@ -15,7 +16,15 @@ import (
 )
 
 type SQLStorage struct {
-	db *sql.DB
+	db      *sql.DB
+	retrier retrier
+}
+
+type retrier struct {
+	attempts   int
+	time       time.Duration
+	delta      time.Duration
+	errToRetry map[string]bool
 }
 
 func NewStorage(cfg *config.ServerConfig) (*SQLStorage, error) {
@@ -42,10 +51,141 @@ func NewStorage(cfg *config.ServerConfig) (*SQLStorage, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &SQLStorage{db: db}, nil
+
+	errToRetry := map[string]bool{
+		pgerrcode.ConnectionException:                     true,
+		pgerrcode.ConnectionDoesNotExist:                  true,
+		pgerrcode.ConnectionFailure:                       true,
+		pgerrcode.SQLClientUnableToEstablishSQLConnection: true,
+	}
+	return &SQLStorage{
+		db:      db,
+		retrier: retrier{attempts: 1, time: 0, delta: 0, errToRetry: errToRetry},
+	}, nil
 }
 
 func (s *SQLStorage) Get(ctx context.Context, metric models.MetricsWithValue) (models.MetricsWithValue, error) {
+	get := func() (models.MetricsWithValue, error) { return s.get(ctx, metric) }
+	metric, err := s.retryWithMetric(get)
+	if err != nil {
+		return metric, err
+	}
+	return metric, nil
+}
+
+func (s *SQLStorage) GetList(ctx context.Context) ([]models.MetricsWithValue, error) {
+	getList := func() ([]models.MetricsWithValue, error) { return s.getList(ctx) }
+	list, err := s.retryWithMetrics(getList)
+	if err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
+func (s *SQLStorage) Update(ctx context.Context, metric models.MetricsWithValue) error {
+	update := func() error { return s.update(ctx, metric) }
+	if err := s.retry(update); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *SQLStorage) UpdateList(ctx context.Context, list []models.MetricsWithValue) error {
+	updateList := func() error { return s.updateList(ctx, list) }
+	if err := s.retry(updateList); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *SQLStorage) Ping() error {
+	ping := func() error { return s.ping() }
+	if err := s.retry(ping); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *SQLStorage) SetRetryCount(attempts int) {
+	s.retrier.attempts = attempts
+}
+
+func (s *SQLStorage) SetRetryStartWaitTime(sleep time.Duration) {
+	s.retrier.time = sleep
+}
+
+func (s *SQLStorage) SetRetryIncreseWaitTime(delta time.Duration) {
+	s.retrier.delta = delta
+}
+
+func (s *SQLStorage) retry(f func() error) error {
+	var err error
+	for i := 0; i < s.retrier.attempts; i++ {
+		if i > 0 {
+			time.Sleep(s.retrier.time)
+			s.retrier.time += s.retrier.delta
+		}
+		err = f()
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && !s.retrier.errToRetry[pgErr.Code] {
+				break
+			}
+		}
+		if err == nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("after %d attempts, last error: %s", s.retrier.attempts, err)
+}
+
+func (s *SQLStorage) retryWithMetric(f func() (models.MetricsWithValue, error)) (models.MetricsWithValue, error) {
+	var (
+		err    error
+		metric models.MetricsWithValue
+	)
+	for i := 0; i < s.retrier.attempts; i++ {
+		if i > 0 {
+			time.Sleep(s.retrier.time)
+			s.retrier.time += s.retrier.delta
+		}
+		metric, err = f()
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && !s.retrier.errToRetry[pgErr.Code] {
+				break
+			}
+		}
+		if err == nil {
+			return metric, nil
+		}
+	}
+	return metric, fmt.Errorf("after %d attempts, last error: %s", s.retrier.attempts, err)
+}
+
+func (s *SQLStorage) retryWithMetrics(f func() ([]models.MetricsWithValue, error)) ([]models.MetricsWithValue, error) {
+	var err error
+	list := make([]models.MetricsWithValue, 0)
+	for i := 0; i < s.retrier.attempts; i++ {
+		if i > 0 {
+			time.Sleep(s.retrier.time)
+			s.retrier.time += s.retrier.delta
+		}
+		list, err = f()
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && !s.retrier.errToRetry[pgErr.Code] {
+				break
+			}
+		}
+		if err == nil {
+			return list, nil
+		}
+	}
+	return nil, fmt.Errorf("after %d attempts, last error: %s", s.retrier.attempts, err)
+}
+
+func (s *SQLStorage) get(ctx context.Context, metric models.MetricsWithValue) (models.MetricsWithValue, error) {
 	switch metric.MType {
 	case "counter":
 		var value int64
@@ -68,7 +208,7 @@ func (s *SQLStorage) Get(ctx context.Context, metric models.MetricsWithValue) (m
 	return metric, nil
 }
 
-func (s *SQLStorage) GetList(ctx context.Context) ([]models.MetricsWithValue, error) {
+func (s *SQLStorage) getList(ctx context.Context) ([]models.MetricsWithValue, error) {
 	list := make([]models.MetricsWithValue, 0)
 
 	rows, err := s.db.QueryContext(ctx, "SELECT metric_id, metric_value FROM counter")
@@ -117,7 +257,7 @@ func (s *SQLStorage) GetList(ctx context.Context) ([]models.MetricsWithValue, er
 	return list, nil
 }
 
-func (s *SQLStorage) Update(ctx context.Context, metric models.MetricsWithValue) error {
+func (s *SQLStorage) update(ctx context.Context, metric models.MetricsWithValue) error {
 	switch metric.MType {
 	case "counter":
 		_, err := s.db.ExecContext(ctx,
@@ -142,7 +282,7 @@ func (s *SQLStorage) Update(ctx context.Context, metric models.MetricsWithValue)
 	return nil
 }
 
-func (s *SQLStorage) UpdateList(ctx context.Context, list []models.MetricsWithValue) error {
+func (s *SQLStorage) updateList(ctx context.Context, list []models.MetricsWithValue) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -176,24 +316,9 @@ func (s *SQLStorage) UpdateList(ctx context.Context, list []models.MetricsWithVa
 	return tx.Commit()
 }
 
-func (s *SQLStorage) Ping() error {
+func (s *SQLStorage) ping() error {
 	if err := s.db.Ping(); err != nil {
 		return err
 	}
 	return nil
 }
-
-// func retry(attempts int, sleep time.Duration, f func() error) error {
-// 	for i := 0; i < attempts; i++ {
-// 		if i > 0 {
-// 			log.Println("retrying after error:", err)
-// 			time.Sleep(sleep)
-// 			sleep += 2
-// 		}
-// 		err = f()
-// 		if err == nil {
-// 			return nil
-// 		}
-// 	}
-// 	return fmt.Errorf("after %d attempts, last error: %s", attempts, err)
-// }

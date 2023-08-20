@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"time"
+
 	"github.com/h3ll0kitt1/observability/internal/config"
 	"github.com/h3ll0kitt1/observability/internal/storage/file"
 	"github.com/h3ll0kitt1/observability/internal/storage/inmemory"
@@ -10,6 +12,10 @@ type StorageManager interface {
 	Load() error
 	Run()
 	Set(MainStorage)
+
+	SetRetryCount(attempts int)
+	SetRetryStartWaitTime(sleep time.Duration)
+	SetRetryIncreseWaitTime(delta time.Duration)
 
 	MainStorage
 }

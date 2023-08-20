@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/h3ll0kitt1/observability/internal/models"
 )
@@ -122,6 +123,10 @@ func (ms *MemStorage) UpdateList(ctx context.Context, list []models.MetricsWithV
 	return nil
 }
 
-func (ms *MemStorage) Ping() error {
-	return nil
-}
+func (ms *MemStorage) Ping() error { return nil }
+
+func (ms *MemStorage) SetRetryCount(attempts int) {}
+
+func (ms *MemStorage) SetRetryStartWaitTime(sleep time.Duration) {}
+
+func (ms *MemStorage) SetRetryIncreseWaitTime(delta time.Duration) {}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"time"
 
 	"github.com/h3ll0kitt1/observability/internal/models"
 )
@@ -14,11 +15,9 @@ type FileStorage struct {
 }
 
 func NewStorage(filename string) *FileStorage {
-	return &FileStorage{filename: filename}
-}
-
-func (fs *FileStorage) Get(ctx context.Context, metric models.MetricsWithValue) (models.MetricsWithValue, error) {
-	return models.MetricsWithValue{}, nil
+	return &FileStorage{
+		filename: filename,
+	}
 }
 
 func (fs *FileStorage) GetList(ctx context.Context) ([]models.MetricsWithValue, error) {
@@ -44,10 +43,6 @@ func (fs *FileStorage) GetList(ctx context.Context) ([]models.MetricsWithValue, 
 	return list, nil
 }
 
-func (fs *FileStorage) Update(ctx context.Context, metric models.MetricsWithValue) error {
-	return nil
-}
-
 func (fs *FileStorage) UpdateList(ctx context.Context, list []models.MetricsWithValue) error {
 	producer, err := newProducer(fs.filename)
 	if err != nil {
@@ -64,9 +59,13 @@ func (fs *FileStorage) UpdateList(ctx context.Context, list []models.MetricsWith
 	return nil
 }
 
-func (fs *FileStorage) Ping() error {
-	return nil
-}
+func (fs *FileStorage) Ping() error { return nil }
+
+func (fs *FileStorage) SetRetryCount(attempts int) {}
+
+func (fs *FileStorage) SetRetryStartWaitTime(sleep time.Duration) {}
+
+func (fs *FileStorage) SetRetryIncreseWaitTime(delta time.Duration) {}
 
 type consumer struct {
 	file    *os.File

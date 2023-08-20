@@ -23,7 +23,11 @@ type application struct {
 func main() {
 
 	cfg := config.NewServerConfig()
+
 	sm := controller.NewStorageManager(cfg)
+	sm.SetRetryCount(3)
+	sm.SetRetryStartWaitTime(1)
+	sm.SetRetryIncreseWaitTime(2)
 
 	if cfg.Database != "" {
 		db, err := sql.NewStorage(cfg)

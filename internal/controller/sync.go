@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	"github.com/h3ll0kitt1/observability/internal/models"
 )
@@ -50,25 +51,41 @@ func (c *SyncController) Update(ctx context.Context, metric models.MetricsWithVa
 	if err := c.storage.Update(ctx, metric); err != nil {
 		return err
 	}
-	return c.Flush()
+	return c.flush()
 }
 
 func (c *SyncController) UpdateList(ctx context.Context, list []models.MetricsWithValue) error {
 	if err := c.storage.UpdateList(ctx, list); err != nil {
 		return err
 	}
-	return c.Flush()
+	return c.flush()
 }
 
 func (c *SyncController) Ping() error {
 	return c.storage.Ping()
 }
 
-func (c *SyncController) Flush() error {
+func (c *SyncController) SetRetryCount(attempts int) {
+	c.storage.SetRetryCount(attempts)
+	c.backup.SetRetryCount(attempts)
+}
+
+func (c *SyncController) SetRetryStartWaitTime(sleep time.Duration) {
+	c.storage.SetRetryStartWaitTime(sleep)
+	c.backup.SetRetryStartWaitTime(sleep)
+}
+
+func (c *SyncController) SetRetryIncreseWaitTime(delta time.Duration) {
+	c.storage.SetRetryIncreseWaitTime(delta)
+	c.backup.SetRetryIncreseWaitTime(delta)
+}
+
+func (c *SyncController) flush() error {
 	list, err := c.storage.GetList(context.Background())
 	if err != nil {
 		return err
 	}
+
 	if err := c.backup.UpdateList(context.Background(), list); err != nil {
 		return err
 	}
