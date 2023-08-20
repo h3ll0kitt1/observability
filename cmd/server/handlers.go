@@ -9,13 +9,20 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/h3ll0kitt1/observability/internal/disk"
 	"github.com/h3ll0kitt1/observability/internal/models"
 )
 
-func (app *application) getAll(w http.ResponseWriter, r *http.Request) {
+func (app *application) getList(w http.ResponseWriter, r *http.Request) {
 	var list strings.Builder
-	metrics := app.storage.GetList()
+	metrics, err := app.storageManager.GetList(r.Context())
+	if err != nil {
+		app.logger.Errorw("error",
+			"get list", err,
+		)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	for _, metric := range metrics {
 		if metric.MType == "counter" {
 			fmt.Fprintf(&list, "%s: %d\n", metric.ID, metric.Delta)
@@ -29,10 +36,23 @@ func (app *application) getAll(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(list.String()))
 }
 
+func (app *application) ping(w http.ResponseWriter, r *http.Request) {
+
+	if app.config.Database == "" {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if err := app.storageManager.Ping(); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 func (app *application) getValue(w http.ResponseWriter, r *http.Request) {
-
 	var metric models.Metrics
-
 	err := json.NewDecoder(r.Body).Decode(&metric)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -44,8 +64,8 @@ func (app *application) getValue(w http.ResponseWriter, r *http.Request) {
 	)
 
 	metricWithValue := models.ToMetricWithValue(metric)
-	metricWithValue, ok := app.storage.GetValue(metricWithValue)
-	if !ok {
+	metricWithValue, err = app.storageManager.Get(r.Context(), metricWithValue)
+	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -63,14 +83,16 @@ func (app *application) getValue(w http.ResponseWriter, r *http.Request) {
 
 func (app *application) getCounter(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
-
 	metric := models.MetricsWithValue{
 		ID:    name,
 		MType: "counter",
 	}
 
-	metric, ok := app.storage.GetValue(metric)
-	if !ok {
+	metric, err := app.storageManager.Get(r.Context(), metric)
+	if err != nil {
+		app.logger.Errorw("error",
+			"get counter", err,
+		)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -83,14 +105,18 @@ func (app *application) getCounter(w http.ResponseWriter, r *http.Request) {
 
 func (app *application) getGauge(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
-
 	metric := models.MetricsWithValue{
 		ID:    name,
 		MType: "gauge",
 	}
 
-	metric, ok := app.storage.GetValue(metric)
-	if !ok {
+	metric, err := app.storageManager.Get(r.Context(), metric)
+	if err != nil {
+
+		app.logger.Errorw("error",
+			"get gauge", err,
+		)
+
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -101,10 +127,34 @@ func (app *application) getGauge(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(valueStr))
 }
 
+func (app *application) updateList(w http.ResponseWriter, r *http.Request) {
+	var list []models.Metrics
+	if err := json.NewDecoder(r.Body).Decode(&list); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	listWithValue := make([]models.MetricsWithValue, 0, len(list))
+	for _, metric := range list {
+		metricWithValue := models.ToMetricWithValue(metric)
+		listWithValue = append(listWithValue, metricWithValue)
+	}
+
+	if err := app.storageManager.UpdateList(r.Context(), listWithValue); err != nil {
+
+		app.logger.Errorw("error",
+			"update list", err,
+		)
+
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 func (app *application) updateValue(w http.ResponseWriter, r *http.Request) {
-
 	var metric models.Metrics
-
 	err := json.NewDecoder(r.Body).Decode(&metric)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -112,10 +162,14 @@ func (app *application) updateValue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	metricWithValue := models.ToMetricWithValue(metric)
-	app.storage.Update(metricWithValue)
+	if err := app.storageManager.Update(r.Context(), metricWithValue); err != nil {
 
-	if app.backupTime == 0 {
-		disk.Flush(app.backupFile, app.storage)
+		app.logger.Errorw("error",
+			"update value", err,
+		)
+
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	app.logger.Infow("updated value",
@@ -133,7 +187,6 @@ func (app *application) updateValue(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) updateCounter(w http.ResponseWriter, r *http.Request) {
-
 	name := chi.URLParam(r, "name")
 	valueStr := chi.URLParam(r, "value")
 
@@ -147,15 +200,20 @@ func (app *application) updateCounter(w http.ResponseWriter, r *http.Request) {
 		MType: "counter",
 		Delta: value,
 	}
-	app.storage.Update(metric)
-	if app.backupTime == 0 {
-		disk.Flush(app.backupFile, app.storage)
+
+	if err := app.storageManager.Update(r.Context(), metric); err != nil {
+		app.logger.Errorw("error",
+			"update counter", err,
+		)
+
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
+
 	w.WriteHeader(http.StatusOK)
 }
 
 func (app *application) updateGauge(w http.ResponseWriter, r *http.Request) {
-
 	name := chi.URLParam(r, "name")
 	valueStr := chi.URLParam(r, "value")
 
@@ -169,10 +227,16 @@ func (app *application) updateGauge(w http.ResponseWriter, r *http.Request) {
 		MType: "gauge",
 		Value: value,
 	}
-	app.storage.Update(metric)
-	if app.backupTime == 0 {
-		disk.Flush(app.backupFile, app.storage)
+
+	if err := app.storageManager.Update(r.Context(), metric); err != nil {
+		app.logger.Errorw("error",
+			"update gauge", err,
+		)
+
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
+
 	w.WriteHeader(http.StatusOK)
 }
 

@@ -1,19 +1,31 @@
-package disk
+package file
 
 import (
+	"context"
 	"encoding/json"
 	"io"
-	"log"
 	"os"
+	"time"
 
 	"github.com/h3ll0kitt1/observability/internal/models"
-	"github.com/h3ll0kitt1/observability/internal/storage"
 )
 
-func Load(filename string, storage storage.Storage) error {
-	consumer, err := newConsumer(filename)
+type FileStorage struct {
+	filename string
+}
+
+func NewStorage(filename string) *FileStorage {
+	return &FileStorage{
+		filename: filename,
+	}
+}
+
+func (fs *FileStorage) GetList(ctx context.Context) ([]models.MetricsWithValue, error) {
+	list := make([]models.MetricsWithValue, 0)
+
+	consumer, err := newConsumer(fs.filename)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer consumer.close()
 
@@ -23,29 +35,37 @@ func Load(filename string, storage storage.Storage) error {
 			if err == io.EOF {
 				break
 			}
+			return nil, err
+		}
+		metricWithValue := models.ToMetricWithValue(*metric)
+		list = append(list, metricWithValue)
+	}
+	return list, nil
+}
+
+func (fs *FileStorage) UpdateList(ctx context.Context, list []models.MetricsWithValue) error {
+	producer, err := newProducer(fs.filename)
+	if err != nil {
+		return err
+	}
+	defer producer.close()
+
+	for _, metric := range list {
+		m := models.ToMetric(metric)
+		if err := producer.writeMetric(&m); err != nil {
 			return err
 		}
-		m := models.ToMetricWithValue(*metric)
-		storage.Update(m)
 	}
 	return nil
 }
 
-func Flush(filename string, storage storage.Storage) {
-	producer, err := newProducer(filename)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer producer.close()
+func (fs *FileStorage) Ping() error { return nil }
 
-	metrics := storage.GetList()
-	for _, metric := range metrics {
-		m := models.ToMetric(*metric)
-		if err := producer.writeMetric(&m); err != nil {
-			log.Print(err)
-		}
-	}
-}
+func (fs *FileStorage) SetRetryCount(attempts int) {}
+
+func (fs *FileStorage) SetRetryStartWaitTime(sleep time.Duration) {}
+
+func (fs *FileStorage) SetRetryIncreaseWaitTime(delta time.Duration) {}
 
 type consumer struct {
 	file    *os.File

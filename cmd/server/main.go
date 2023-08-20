@@ -3,70 +3,59 @@ package main
 import (
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 
 	"github.com/h3ll0kitt1/observability/internal/config"
-	"github.com/h3ll0kitt1/observability/internal/disk"
+	"github.com/h3ll0kitt1/observability/internal/controller"
 	"github.com/h3ll0kitt1/observability/internal/logger"
-	"github.com/h3ll0kitt1/observability/internal/storage"
-	"github.com/h3ll0kitt1/observability/internal/storage/inmemory"
+	"github.com/h3ll0kitt1/observability/internal/storage/sql"
 )
 
 type application struct {
-	storage    storage.Storage
-	router     *chi.Mux
-	logger     *zap.SugaredLogger
-	backupFile string
-	backupTime time.Duration
-}
-
-func (app *application) loadFromDisk() error {
-	if err := disk.Load(app.backupFile, app.storage); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (app *application) flushToDisk() {
-	ticker := time.NewTicker(app.backupTime)
-
-	for range ticker.C {
-		disk.Flush(app.backupFile, app.storage)
-	}
+	config         *config.ServerConfig
+	storageManager controller.StorageManager
+	router         *chi.Mux
+	logger         *zap.SugaredLogger
 }
 
 func main() {
 
 	cfg := config.NewServerConfig()
 
-	s := inmemory.NewStorage()
-	r := chi.NewRouter()
-	l := logger.NewLogger()
+	sm := controller.NewStorageManager(cfg)
+	sm.SetRetryCount(3)
+	sm.SetRetryStartWaitTime(1)
+	sm.SetRetryIncreaseWaitTime(2)
 
-	defer l.Sync()
-
-	app := &application{
-		storage:    s,
-		router:     r,
-		logger:     l,
-		backupFile: cfg.FileStoragePath,
-		backupTime: cfg.StoreInterval,
+	if cfg.Database != "" {
+		db, err := sql.NewStorage(cfg)
+		if err != nil {
+			log.Fatalf("Error %s open database", err)
+		}
+		sm.Set(db)
 	}
 
-	app.setRouters()
-
 	if cfg.Restore {
-		if err := app.loadFromDisk(); err != nil {
-			log.Fatal(err)
+		if err := sm.Load(); err != nil {
+			log.Fatalf("Error %s loading from disk", err)
 		}
 	}
 
-	if app.backupTime > 0 {
-		go app.flushToDisk()
+	r := chi.NewRouter()
+	l := logger.NewLogger()
+	defer l.Sync()
+
+	app := &application{
+		config:         cfg,
+		storageManager: sm,
+		router:         r,
+		logger:         l,
 	}
+	app.setRouters()
+
+	go app.storageManager.Run()
 
 	srv := &http.Server{
 		Addr:    cfg.Addr,
@@ -74,7 +63,6 @@ func main() {
 	}
 
 	if err := srv.ListenAndServe(); err != nil {
-		log.Fatal(err)
-		return
+		log.Fatalf("Error %s launching server", err)
 	}
 }

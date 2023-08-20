@@ -10,7 +10,8 @@ func (app *application) setRouters() {
 	app.router.Use(app.gzipper)
 
 	app.router.Route("/", func(r chi.Router) {
-		app.router.Get("/", app.getAll)
+		app.router.Get("/", app.getList)
+		app.router.Get("/ping", app.ping)
 
 		app.router.Route("/value", func(router chi.Router) {
 			router.Post("/", app.getValue)
@@ -18,6 +19,8 @@ func (app *application) setRouters() {
 			router.Get("/gauge/{name}", app.getGauge)
 			router.Get("/{other}/{name}", errorUnknown)
 		})
+
+		app.router.Post("/updates/", app.updateList)
 
 		app.router.Route("/update", func(router chi.Router) {
 			router.Post("/", app.updateValue)

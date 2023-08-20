@@ -23,6 +23,7 @@ type ServerConfig struct {
 	StoreInterval   time.Duration
 	FileStoragePath string
 	Restore         bool
+	Database        string
 }
 
 func NewClientConfig() *ClientConfig {
@@ -31,15 +32,21 @@ func NewClientConfig() *ClientConfig {
 		flagReportInterval int
 		flagPollInterval   int
 		flagRunAddr        string
+		flagDatabase       string
 	)
 
 	flag.StringVar(&flagRunAddr, "a", "localhost:8080", "address and port to run client")
+	flag.StringVar(&flagDatabase, "d", "", "database to store metrics")
 	flag.IntVar(&flagReportInterval, "r", 10, "number of seconds to report to server")
 	flag.IntVar(&flagPollInterval, "p", 2, "number of seconds to update metrics")
 	flag.Parse()
 
 	if envRunAddr := os.Getenv("ADDRESS"); envRunAddr != "" {
 		flagRunAddr = envRunAddr
+	}
+
+	if envDatabase := os.Getenv("DATABASE_DSN"); envDatabase != "" {
+		flagDatabase = envDatabase
 	}
 
 	envReportInterval, err := strconv.Atoi(os.Getenv("REPORT_INTERVAL"))
@@ -78,12 +85,14 @@ func NewServerConfig() *ServerConfig {
 	var (
 		flagRunAddr         string
 		flagFileStoragePath string
+		flagDatabasePath    string
 		flagStoreInterval   int
 		flagRestore         bool
 	)
 
 	flag.StringVar(&flagRunAddr, "a", "localhost:8080", "address and port to run server")
 	flag.StringVar(&flagFileStoragePath, "f", "/tmp/metrics-db.json", "full name of file to save metrics")
+	flag.StringVar(&flagDatabasePath, "d", "", "sql database to store metrics")
 	flag.IntVar(&flagStoreInterval, "i", 300, "interval in seconds to store metric values to file")
 	flag.BoolVar(&flagRestore, "r", true, "bool value to show if previosly saved metrics should be loaded into server memory")
 	flag.Parse()
@@ -94,6 +103,10 @@ func NewServerConfig() *ServerConfig {
 
 	if envFileStoragePath := os.Getenv("FILE_STORAGE_PATH"); envFileStoragePath != "" {
 		flagFileStoragePath = envFileStoragePath
+	}
+
+	if envDatabasePath := os.Getenv("DATABASE_DSN"); envDatabasePath != "" {
+		flagDatabasePath = envDatabasePath
 	}
 
 	envRestore, err := strconv.ParseBool(os.Getenv("RESTORE"))
@@ -110,11 +123,13 @@ func NewServerConfig() *ServerConfig {
 	file := flagFileStoragePath
 	storeInterval := time.Duration(flagStoreInterval) * time.Second
 	restore := flagRestore
+	database := flagDatabasePath
 
 	return &ServerConfig{
 		Addr:            addr,
 		StoreInterval:   storeInterval,
 		FileStoragePath: file,
 		Restore:         restore,
+		Database:        database,
 	}
 }
