@@ -21,5 +21,5 @@ type BackupStorage interface {
 
 	SetRetryCount(attempts int)
 	SetRetryStartWaitTime(sleep time.Duration)
-	SetRetryIncreseWaitTime(delta time.Duration)
+	SetRetryIncreaseWaitTime(delta time.Duration)
 }

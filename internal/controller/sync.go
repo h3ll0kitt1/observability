@@ -76,8 +76,8 @@ func (c *SyncController) SetRetryStartWaitTime(sleep time.Duration) {
 }
 
 func (c *SyncController) SetRetryIncreaseWaitTime(delta time.Duration) {
-	c.storage.SetRetryIncreseWaitTime(delta)
-	c.backup.SetRetryIncreseWaitTime(delta)
+	c.storage.SetRetryIncreaseWaitTime(delta)
+	c.backup.SetRetryIncreaseWaitTime(delta)
 }
 
 func (c *SyncController) flush() error {

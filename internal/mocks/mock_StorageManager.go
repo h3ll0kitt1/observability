@@ -131,16 +131,16 @@ func (mr *MockStorageManagerMockRecorder) SetRetryCount(arg0 interface{}) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRetryCount", reflect.TypeOf((*MockStorageManager)(nil).SetRetryCount), arg0)
 }
 
-// SetRetryIncreseWaitTime mocks base method.
-func (m *MockStorageManager) SetRetryIncreseWaitTime(arg0 time.Duration) {
+// SetRetryIncreaseWaitTime mocks base method.
+func (m *MockStorageManager) SetRetryIncreaseWaitTime(arg0 time.Duration) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetRetryIncreseWaitTime", arg0)
+	m.ctrl.Call(m, "SetRetryIncreaseWaitTime", arg0)
 }
 
-// SetRetryIncreseWaitTime indicates an expected call of SetRetryIncreseWaitTime.
-func (mr *MockStorageManagerMockRecorder) SetRetryIncreseWaitTime(arg0 interface{}) *gomock.Call {
+// SetRetryIncreaseWaitTime indicates an expected call of SetRetryIncreaseWaitTime.
+func (mr *MockStorageManagerMockRecorder) SetRetryIncreaseWaitTime(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRetryIncreseWaitTime", reflect.TypeOf((*MockStorageManager)(nil).SetRetryIncreseWaitTime), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRetryIncreaseWaitTime", reflect.TypeOf((*MockStorageManager)(nil).SetRetryIncreaseWaitTime), arg0)
 }
 
 // SetRetryStartWaitTime mocks base method.
