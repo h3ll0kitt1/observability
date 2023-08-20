@@ -165,13 +165,12 @@ func (s *SQLStorage) retryWithMetric(f func() (models.MetricsWithValue, error)) 
 
 func (s *SQLStorage) retryWithMetrics(f func() ([]models.MetricsWithValue, error)) ([]models.MetricsWithValue, error) {
 	var err error
-	list := make([]models.MetricsWithValue, 0)
 	for i := 0; i < s.retrier.attempts; i++ {
 		if i > 0 {
 			time.Sleep(s.retrier.time)
 			s.retrier.time += s.retrier.delta
 		}
-		list, err = f()
+		list, err := f()
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && !s.retrier.errToRetry[pgErr.Code] {

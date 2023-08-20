@@ -7,6 +7,7 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	gomock "github.com/golang/mock/gomock"
 	controller "github.com/h3ll0kitt1/observability/internal/controller"
@@ -116,6 +117,42 @@ func (m *MockStorageManager) Set(arg0 controller.MainStorage) {
 func (mr *MockStorageManagerMockRecorder) Set(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockStorageManager)(nil).Set), arg0)
+}
+
+// SetRetryCount mocks base method.
+func (m *MockStorageManager) SetRetryCount(arg0 int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetRetryCount", arg0)
+}
+
+// SetRetryCount indicates an expected call of SetRetryCount.
+func (mr *MockStorageManagerMockRecorder) SetRetryCount(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRetryCount", reflect.TypeOf((*MockStorageManager)(nil).SetRetryCount), arg0)
+}
+
+// SetRetryIncreseWaitTime mocks base method.
+func (m *MockStorageManager) SetRetryIncreseWaitTime(arg0 time.Duration) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetRetryIncreseWaitTime", arg0)
+}
+
+// SetRetryIncreseWaitTime indicates an expected call of SetRetryIncreseWaitTime.
+func (mr *MockStorageManagerMockRecorder) SetRetryIncreseWaitTime(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRetryIncreseWaitTime", reflect.TypeOf((*MockStorageManager)(nil).SetRetryIncreseWaitTime), arg0)
+}
+
+// SetRetryStartWaitTime mocks base method.
+func (m *MockStorageManager) SetRetryStartWaitTime(arg0 time.Duration) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetRetryStartWaitTime", arg0)
+}
+
+// SetRetryStartWaitTime indicates an expected call of SetRetryStartWaitTime.
+func (mr *MockStorageManagerMockRecorder) SetRetryStartWaitTime(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRetryStartWaitTime", reflect.TypeOf((*MockStorageManager)(nil).SetRetryStartWaitTime), arg0)
 }
 
 // Update mocks base method.
