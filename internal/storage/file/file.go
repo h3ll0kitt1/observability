@@ -65,7 +65,7 @@ func (fs *FileStorage) SetRetryCount(attempts int) {}
 
 func (fs *FileStorage) SetRetryStartWaitTime(sleep time.Duration) {}
 
-func (fs *FileStorage) SetRetryIncreseWaitTime(delta time.Duration) {}
+func (fs *FileStorage) SetRetryIncreaseWaitTime(delta time.Duration) {}
 
 type consumer struct {
 	file    *os.File

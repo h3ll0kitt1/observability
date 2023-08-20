@@ -129,4 +129,4 @@ func (ms *MemStorage) SetRetryCount(attempts int) {}
 
 func (ms *MemStorage) SetRetryStartWaitTime(sleep time.Duration) {}
 
-func (ms *MemStorage) SetRetryIncreseWaitTime(delta time.Duration) {}
+func (ms *MemStorage) SetRetryIncreaseWaitTime(delta time.Duration) {}

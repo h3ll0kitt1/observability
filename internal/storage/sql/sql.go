@@ -114,13 +114,13 @@ func (s *SQLStorage) SetRetryStartWaitTime(sleep time.Duration) {
 	s.retrier.time = sleep
 }
 
-func (s *SQLStorage) SetRetryIncreseWaitTime(delta time.Duration) {
+func (s *SQLStorage) SetRetryIncreaseWaitTime(delta time.Duration) {
 	s.retrier.delta = delta
 }
 
 func (s *SQLStorage) retry(f func() error) error {
 	var err error
-	for i := 0; i < s.retrier.attempts; i++ {
+	for i := 0; i <= s.retrier.attempts; i++ {
 		if i > 0 {
 			time.Sleep(s.retrier.time)
 			s.retrier.time += s.retrier.delta
@@ -144,7 +144,7 @@ func (s *SQLStorage) retryWithMetric(f func() (models.MetricsWithValue, error)) 
 		err    error
 		metric models.MetricsWithValue
 	)
-	for i := 0; i < s.retrier.attempts; i++ {
+	for i := 0; i <= s.retrier.attempts; i++ {
 		if i > 0 {
 			time.Sleep(s.retrier.time)
 			s.retrier.time += s.retrier.delta
@@ -165,7 +165,7 @@ func (s *SQLStorage) retryWithMetric(f func() (models.MetricsWithValue, error)) 
 
 func (s *SQLStorage) retryWithMetrics(f func() ([]models.MetricsWithValue, error)) ([]models.MetricsWithValue, error) {
 	var err error
-	for i := 0; i < s.retrier.attempts; i++ {
+	for i := 0; i <= s.retrier.attempts; i++ {
 		if i > 0 {
 			time.Sleep(s.retrier.time)
 			s.retrier.time += s.retrier.delta

@@ -15,7 +15,7 @@ type StorageManager interface {
 
 	SetRetryCount(attempts int)
 	SetRetryStartWaitTime(sleep time.Duration)
-	SetRetryIncreseWaitTime(delta time.Duration)
+	SetRetryIncreaseWaitTime(delta time.Duration)
 
 	MainStorage
 }

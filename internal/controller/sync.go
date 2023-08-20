@@ -75,7 +75,7 @@ func (c *SyncController) SetRetryStartWaitTime(sleep time.Duration) {
 	c.backup.SetRetryStartWaitTime(sleep)
 }
 
-func (c *SyncController) SetRetryIncreseWaitTime(delta time.Duration) {
+func (c *SyncController) SetRetryIncreaseWaitTime(delta time.Duration) {
 	c.storage.SetRetryIncreseWaitTime(delta)
 	c.backup.SetRetryIncreseWaitTime(delta)
 }

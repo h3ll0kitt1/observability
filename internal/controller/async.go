@@ -80,7 +80,7 @@ func (c *AsyncController) SetRetryStartWaitTime(sleep time.Duration) {
 	c.backup.SetRetryStartWaitTime(sleep)
 }
 
-func (c *AsyncController) SetRetryIncreseWaitTime(delta time.Duration) {
+func (c *AsyncController) SetRetryIncreaseWaitTime(delta time.Duration) {
 	c.storage.SetRetryIncreseWaitTime(delta)
 	c.backup.SetRetryIncreseWaitTime(delta)
 }
