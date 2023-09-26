@@ -169,6 +169,11 @@ func (app *application) requestVerifier(next http.Handler) http.Handler {
 			}
 
 			if !ok {
+
+				app.logger.Errorw("error",
+					"wrong hash signature", recievedHash,
+				)
+
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
@@ -185,6 +190,12 @@ func (app *application) verifySignature(body io.ReadCloser, idealHash string) (b
 	}
 
 	computedHash := hash.ComputeSHA256(b, app.config.Key)
+
+	app.logger.Infow("compare hashes",
+		"computed", computedHash,
+		"mustbe", idealHash,
+	)
+
 	if computedHash != idealHash {
 		return false, nil
 	}
