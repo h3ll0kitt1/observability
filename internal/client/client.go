@@ -3,6 +3,7 @@ package client
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"errors"
 	"log"
 	"math/rand"
@@ -89,8 +90,8 @@ func (c customClient) doRequestPOST(metrics []models.Metrics) error {
 		return errors.New("error converting slice of metrics to json")
 	}
 
-	if c.Key != "" {
-		hash := hash.ComputeSHA256(jsonData, c.Key)
+	if c.key != "" {
+		hash := hash.ComputeSHA256(jsonData, c.key)
 		c.httpClient.R().SetHeader("HashSHA256", hash)
 	}
 
