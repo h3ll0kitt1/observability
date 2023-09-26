@@ -158,9 +158,9 @@ func (app *application) gzipper(next http.Handler) http.Handler {
 func (app *application) requestVerifier(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		if app.config.Key != "" {
+		recievedHash := r.Header.Get("HashSHA256")
 
-			recievedHash := r.Header.Get("HashSHA256")
+		if app.config.Key != "" && recievedHash != "" {
 			ok, err := app.verifySignature(r.Body, recievedHash)
 
 			if err != nil {
@@ -170,7 +170,7 @@ func (app *application) requestVerifier(next http.Handler) http.Handler {
 
 			if !ok {
 
-				app.logger.Errorw("error",
+				app.logger.Infow("info",
 					"wrong hash signature", recievedHash,
 				)
 
