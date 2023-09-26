@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/h3ll0kitt1/observability/internal/hash"
 	"github.com/h3ll0kitt1/observability/internal/models"
 )
 
@@ -29,6 +30,11 @@ func (app *application) getList(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		fmt.Fprintf(&list, "%s: %f\n", metric.ID, metric.Value)
+	}
+
+	if app.config.Key != "" {
+		hash := hash.ComputeSHA256([]byte(list.String()), app.config.Key)
+		w.Header().Set("HashSHA256", hash)
 	}
 
 	w.Header().Set("Content-Type", "text/html")
@@ -76,6 +82,12 @@ func (app *application) getValue(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	if app.config.Key != "" {
+		hash := hash.ComputeSHA256(jsonData, app.config.Key)
+		w.Header().Set("HashSHA256", hash)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(jsonData))
@@ -97,6 +109,11 @@ func (app *application) getCounter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	valueStr := fmt.Sprintf("%d", metric.Delta)
+
+	if app.config.Key != "" {
+		hash := hash.ComputeSHA256([]byte(valueStr), app.config.Key)
+		w.Header().Set("HashSHA256", hash)
+	}
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
@@ -121,6 +138,11 @@ func (app *application) getGauge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	valueStr := strconv.FormatFloat(metric.Value, 'f', -1, 64)
+
+	if app.config.Key != "" {
+		hash := hash.ComputeSHA256([]byte(valueStr), app.config.Key)
+		w.Header().Set("HashSHA256", hash)
+	}
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
@@ -181,6 +203,12 @@ func (app *application) updateValue(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	if app.config.Key != "" {
+		hash := hash.ComputeSHA256(jsonData, app.config.Key)
+		w.Header().Set("HashSHA256", hash)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(jsonData))

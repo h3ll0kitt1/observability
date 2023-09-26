@@ -11,6 +11,7 @@ type ClientConfig struct {
 	Protocol         string
 	Addr             string
 	Endpoint         string
+	Key              string
 	ReportInterval   time.Duration
 	PollInterval     time.Duration
 	RetryCount       int
@@ -20,10 +21,11 @@ type ClientConfig struct {
 
 type ServerConfig struct {
 	Addr            string
-	StoreInterval   time.Duration
+	Key             string
+	Database        string
 	FileStoragePath string
 	Restore         bool
-	Database        string
+	StoreInterval   time.Duration
 }
 
 func NewClientConfig() *ClientConfig {
@@ -33,10 +35,12 @@ func NewClientConfig() *ClientConfig {
 		flagPollInterval   int
 		flagRunAddr        string
 		flagDatabase       string
+		flagKey            string
 	)
 
 	flag.StringVar(&flagRunAddr, "a", "localhost:8080", "address and port to run client")
 	flag.StringVar(&flagDatabase, "d", "", "database to store metrics")
+	flag.StringVar(&flagKey, "k", "", "symmetrical key for SHA256 hash function")
 	flag.IntVar(&flagReportInterval, "r", 10, "number of seconds to report to server")
 	flag.IntVar(&flagPollInterval, "p", 2, "number of seconds to update metrics")
 	flag.Parse()
@@ -47,6 +51,10 @@ func NewClientConfig() *ClientConfig {
 
 	if envDatabase := os.Getenv("DATABASE_DSN"); envDatabase != "" {
 		flagDatabase = envDatabase
+	}
+
+	if envKey := os.Getenv("KEY"); envKey != "" {
+		flagKey = envKey
 	}
 
 	envReportInterval, err := strconv.Atoi(os.Getenv("REPORT_INTERVAL"))
@@ -62,6 +70,7 @@ func NewClientConfig() *ClientConfig {
 	protocol := "http://"
 	addr := flagRunAddr
 	endpoint := protocol + addr
+	key := flagKey
 	pollInterval := time.Duration(flagPollInterval) * time.Second
 	reportInterval := time.Duration(flagReportInterval) * time.Second
 	retryCount := 6
@@ -72,6 +81,7 @@ func NewClientConfig() *ClientConfig {
 		Protocol:         protocol,
 		Addr:             addr,
 		Endpoint:         endpoint,
+		Key:              key,
 		ReportInterval:   reportInterval,
 		PollInterval:     pollInterval,
 		RetryCount:       retryCount,
@@ -86,6 +96,7 @@ func NewServerConfig() *ServerConfig {
 		flagRunAddr         string
 		flagFileStoragePath string
 		flagDatabasePath    string
+		flagKey             string
 		flagStoreInterval   int
 		flagRestore         bool
 	)
@@ -93,6 +104,7 @@ func NewServerConfig() *ServerConfig {
 	flag.StringVar(&flagRunAddr, "a", "localhost:8080", "address and port to run server")
 	flag.StringVar(&flagFileStoragePath, "f", "/tmp/metrics-db.json", "full name of file to save metrics")
 	flag.StringVar(&flagDatabasePath, "d", "", "sql database to store metrics")
+	flag.StringVar(&flagKey, "k", "", "symmetrical key for SHA256 hash function")
 	flag.IntVar(&flagStoreInterval, "i", 300, "interval in seconds to store metric values to file")
 	flag.BoolVar(&flagRestore, "r", true, "bool value to show if previosly saved metrics should be loaded into server memory")
 	flag.Parse()
@@ -107,6 +119,10 @@ func NewServerConfig() *ServerConfig {
 
 	if envDatabasePath := os.Getenv("DATABASE_DSN"); envDatabasePath != "" {
 		flagDatabasePath = envDatabasePath
+	}
+
+	if envKey := os.Getenv("KEY"); envKey != "" {
+		flagKey = envKey
 	}
 
 	envRestore, err := strconv.ParseBool(os.Getenv("RESTORE"))
@@ -124,6 +140,7 @@ func NewServerConfig() *ServerConfig {
 	storeInterval := time.Duration(flagStoreInterval) * time.Second
 	restore := flagRestore
 	database := flagDatabasePath
+	key := flagKey
 
 	return &ServerConfig{
 		Addr:            addr,
@@ -131,5 +148,6 @@ func NewServerConfig() *ServerConfig {
 		FileStoragePath: file,
 		Restore:         restore,
 		Database:        database,
+		Key:             key,
 	}
 }

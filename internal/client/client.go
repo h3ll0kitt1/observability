@@ -3,7 +3,6 @@ package client
 import (
 	"bytes"
 	"compress/gzip"
-	"encoding/json"
 	"errors"
 	"log"
 	"math/rand"
@@ -14,6 +13,7 @@ import (
 	"github.com/go-resty/resty/v2"
 
 	"github.com/h3ll0kitt1/observability/internal/config"
+	"github.com/h3ll0kitt1/observability/internal/hash"
 	"github.com/h3ll0kitt1/observability/internal/models"
 )
 
@@ -24,6 +24,7 @@ var (
 type customClient struct {
 	httpClient *resty.Client
 	endpoint   string
+	key        string
 }
 
 type metricKey struct {
@@ -65,7 +66,11 @@ func newCustomClient(cfg *config.ClientConfig) customClient {
 		SetRetryWaitTime(cfg.RetryWaitTime).
 		SetRetryMaxWaitTime(cfg.RetryMaxWaitTime)
 
-	return customClient{httpClient: httpClient, endpoint: cfg.Endpoint}
+	return customClient{
+		httpClient: httpClient,
+		endpoint:   cfg.Endpoint,
+		key:        cfg.Key,
+	}
 }
 
 func (m *metrics) sendToServer(client customClient) {
@@ -82,6 +87,11 @@ func (c customClient) doRequestPOST(metrics []models.Metrics) error {
 	jsonData, err := json.Marshal(metrics)
 	if err != nil {
 		return errors.New("error converting slice of metrics to json")
+	}
+
+	if c.Key != "" {
+		hash := hash.ComputeSHA256(jsonData, c.Key)
+		c.httpClient.R().SetHeader("HashSHA256", hash)
 	}
 
 	gzipData, err := GzipCompress(jsonData)
