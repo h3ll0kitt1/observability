@@ -14,6 +14,7 @@ type ClientConfig struct {
 	Key              string
 	ReportInterval   time.Duration
 	PollInterval     time.Duration
+	RateLimit        int
 	RetryCount       int
 	RetryWaitTime    time.Duration
 	RetryMaxWaitTime time.Duration
@@ -36,6 +37,7 @@ func NewClientConfig() *ClientConfig {
 		flagRunAddr        string
 		flagDatabase       string
 		flagKey            string
+		flagRateLimit      int
 	)
 
 	flag.StringVar(&flagRunAddr, "a", "localhost:8080", "address and port to run client")
@@ -43,6 +45,7 @@ func NewClientConfig() *ClientConfig {
 	flag.StringVar(&flagKey, "k", "", "symmetrical key for SHA256 hash function")
 	flag.IntVar(&flagReportInterval, "r", 10, "number of seconds to report to server")
 	flag.IntVar(&flagPollInterval, "p", 2, "number of seconds to update metrics")
+	flag.IntVar(&flagRateLimit, "l", 2, "number of concurrent post requests to server")
 	flag.Parse()
 
 	if envRunAddr := os.Getenv("ADDRESS"); envRunAddr != "" {
@@ -67,12 +70,18 @@ func NewClientConfig() *ClientConfig {
 		flagPollInterval = envPollInterval
 	}
 
+	envRateLimit, err := strconv.Atoi(os.Getenv("RATE_LIMIT"))
+	if err == nil {
+		flagRateLimit = envRateLimit
+	}
+
 	protocol := "http://"
 	addr := flagRunAddr
 	endpoint := protocol + addr
 	key := flagKey
 	pollInterval := time.Duration(flagPollInterval) * time.Second
 	reportInterval := time.Duration(flagReportInterval) * time.Second
+	rateLimit := flagRateLimit
 	retryCount := 6
 	retryWaitTime := 3 * time.Second
 	retryMaxWaitTime := 90 * time.Second
@@ -84,6 +93,7 @@ func NewClientConfig() *ClientConfig {
 		Key:              key,
 		ReportInterval:   reportInterval,
 		PollInterval:     pollInterval,
+		RateLimit:        rateLimit,
 		RetryCount:       retryCount,
 		RetryWaitTime:    retryWaitTime,
 		RetryMaxWaitTime: retryMaxWaitTime,

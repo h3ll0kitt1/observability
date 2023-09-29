@@ -9,9 +9,11 @@ import (
 	"math/rand"
 	"reflect"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/shirou/gopsutil/mem"
 
 	"github.com/h3ll0kitt1/observability/internal/config"
 	"github.com/h3ll0kitt1/observability/internal/hash"
@@ -34,9 +36,14 @@ type metricKey struct {
 }
 
 type metrics struct {
-	mapMetrics map[metricKey]models.Metrics
+	mapMetrics *mapRW
 	arrMetrics []models.Metrics
 	pollCount  int64
+}
+
+type mapRW struct {
+	metrics map[metricKey]models.Metrics
+	sync.RWMutex
 }
 
 func Run(cfg *config.ClientConfig) {
@@ -52,9 +59,9 @@ func Run(cfg *config.ClientConfig) {
 	for {
 		select {
 		case <-pollTicker.C:
-			metrics.update(rng)
+			go metrics.update(rng)
 		case <-sendTicker.C:
-			metrics.sendToServer(client)
+			metrics.sendToServerWithRate(client, cfg.RateLimit)
 		}
 	}
 }
@@ -74,18 +81,32 @@ func newCustomClient(cfg *config.ClientConfig) customClient {
 	}
 }
 
-func (m *metrics) sendToServer(client customClient) {
-	if len(m.arrMetrics) != 0 {
-		err := client.doRequestPOST(m.arrMetrics)
+func (m *metrics) sendToServerWithRate(client customClient, limit int) {
+
+	ch := make(chan models.Metrics, 256)
+	for _, metric := range m.arrMetrics {
+		ch <- metric
+	}
+	close(ch)
+
+	for i := 0; i < limit; i++ {
+		go client.worker(i, ch)
+	}
+}
+
+func (c customClient) worker(i int, ch chan models.Metrics) {
+
+	for metric := range ch {
+		err := c.doRequestPOST(metric)
 		if err != nil {
 			log.Printf("%s\n", err)
 		}
 	}
 }
 
-func (c customClient) doRequestPOST(metrics []models.Metrics) error {
+func (c customClient) doRequestPOST(metric models.Metrics) error {
 
-	jsonData, err := json.Marshal(metrics)
+	jsonData, err := json.Marshal(metric)
 	if err != nil {
 		return errors.New("error converting slice of metrics to json")
 	}
@@ -105,7 +126,7 @@ func (c customClient) doRequestPOST(metrics []models.Metrics) error {
 		SetHeader("Content-Encoding", "gzip").
 		SetHeader("Accept-Encoding", "gzip").
 		SetBody(gzipData).
-		Post(c.endpoint + "/updates/")
+		Post(c.endpoint + "/update/")
 
 	if err != nil {
 		return ErrServerUnavailable
@@ -114,7 +135,7 @@ func (c customClient) doRequestPOST(metrics []models.Metrics) error {
 }
 
 func newMetrics() metrics {
-	mapMetrics := make(map[metricKey]models.Metrics)
+	mapMetrics := newMapRW()
 	arrMetrics := make([]models.Metrics, 0)
 	return metrics{
 		mapMetrics: mapMetrics,
@@ -122,11 +143,19 @@ func newMetrics() metrics {
 		pollCount:  0}
 }
 
+func newMapRW() *mapRW {
+	var m mapRW
+	m.metrics = make(map[metricKey]models.Metrics)
+	return &m
+}
+
 func (m *metrics) update(rng *rand.Rand) {
 	m.arrMetrics = m.arrMetrics[:0]
 	m.updateSpecificMemStats()
 	m.updateRandomValue(rng)
 	m.updateCounterValue()
+	go m.updateMemoryCPUInfo()
+
 }
 
 func (m *metrics) updateSpecificMemStats() {
@@ -183,7 +212,47 @@ func (m *metrics) updateSpecificMemStats() {
 			Value: &value,
 		}
 
-		m.mapMetrics[key] = metric
+		m.mapMetrics.RLock()
+		m.mapMetrics.metrics[key] = metric
+		m.mapMetrics.RUnlock()
+		m.arrMetrics = append(m.arrMetrics, metric)
+	}
+}
+
+func (m *metrics) updateMemoryCPUInfo() {
+
+	vmStat, err := mem.VirtualMemory()
+	if err != nil {
+		log.Printf("%s\n", err)
+	}
+
+	searchedFields := map[string]bool{
+		"Total":       true,
+		"Free":        true,
+		"UsedPercent": true,
+	}
+
+	v := reflect.ValueOf(vmStat).Elem()
+
+	for i := 0; i < v.NumField(); i++ {
+		id := v.Type().Field(i).Name
+		if _, ok := searchedFields[id]; !ok {
+			continue
+		}
+
+		mtype := "gauge"
+		value := getFloat64(v.Field(i).Interface())
+
+		key := metricKey{id: id, mtype: mtype}
+		metric := models.Metrics{
+			ID:    id,
+			MType: mtype,
+			Value: &value,
+		}
+
+		m.mapMetrics.RLock()
+		m.mapMetrics.metrics[key] = metric
+		m.mapMetrics.RUnlock()
 		m.arrMetrics = append(m.arrMetrics, metric)
 	}
 }
@@ -218,7 +287,9 @@ func (m *metrics) updateRandomValue(rng *rand.Rand) {
 		Value: &value,
 	}
 
-	m.mapMetrics[key] = metric
+	m.mapMetrics.RLock()
+	m.mapMetrics.metrics[key] = metric
+	m.mapMetrics.RUnlock()
 	m.arrMetrics = append(m.arrMetrics, metric)
 }
 
@@ -235,7 +306,9 @@ func (m *metrics) updateCounterValue() {
 		Delta: &value,
 	}
 
-	m.mapMetrics[key] = metric
+	m.mapMetrics.RLock()
+	m.mapMetrics.metrics[key] = metric
+	m.mapMetrics.RUnlock()
 	m.arrMetrics = append(m.arrMetrics, metric)
 }
 
