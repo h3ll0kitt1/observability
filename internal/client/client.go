@@ -90,11 +90,11 @@ func (m *metrics) sendToServerWithRate(client customClient, limit int) {
 	close(ch)
 
 	for i := 0; i < limit; i++ {
-		go client.worker(i, ch)
+		go client.sentToServerWorker(ch)
 	}
 }
 
-func (c customClient) worker(i int, ch chan models.Metrics) {
+func (c customClient) sentToServerWorker(ch chan models.Metrics) {
 
 	for metric := range ch {
 		err := c.doRequestPOST(metric)

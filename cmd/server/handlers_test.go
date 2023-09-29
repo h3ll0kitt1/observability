@@ -1,97 +1,97 @@
 package main
 
-// import (
-// 	"net/http"
-// 	"net/http/httptest"
-// 	"testing"
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
 
-// 	"github.com/go-chi/chi/v5"
-// 	"github.com/go-resty/resty/v2"
-// 	"github.com/golang/mock/gomock"
-// 	"github.com/stretchr/testify/assert"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-resty/resty/v2"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 
-// 	"github.com/h3ll0kitt1/observability/internal/config"
-// 	"github.com/h3ll0kitt1/observability/internal/logger"
-// 	"github.com/h3ll0kitt1/observability/internal/mocks"
-// 	"github.com/h3ll0kitt1/observability/internal/models"
-// )
+	"github.com/h3ll0kitt1/observability/internal/config"
+	"github.com/h3ll0kitt1/observability/internal/logger"
+	"github.com/h3ll0kitt1/observability/internal/mocks"
+	"github.com/h3ll0kitt1/observability/internal/models"
+)
 
-// func TestHandler_getList(t *testing.T) {
+func TestHandler_getList(t *testing.T) {
 
-// 	ctrl := gomock.NewController(t)
-// 	defer ctrl.Finish()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-// 	sm := mocks.NewMockStorageManager(ctrl)
+	sm := mocks.NewMockStorageManager(ctrl)
 
-// 	r := chi.NewRouter()
-// 	c := config.NewServerConfig()
-// 	l := logger.NewLogger()
+	r := chi.NewRouter()
+	c := config.NewServerConfig()
+	l := logger.NewLogger()
 
-// 	app := &application{
-// 		storageManager: sm,
-// 		router:         r,
-// 		logger:         l,
-// 		config:         c,
-// 	}
-// 	app.setRouters()
+	app := &application{
+		storageManager: sm,
+		router:         r,
+		logger:         l,
+		config:         c,
+	}
+	app.setRouters()
 
-// 	handler := http.HandlerFunc(app.getList)
-// 	srv := httptest.NewServer(handler)
-// 	defer srv.Close()
+	handler := http.HandlerFunc(app.getList)
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
 
-// 	list := []models.MetricsWithValue{
-// 		{
-// 			ID:    "testCounter",
-// 			MType: "counter",
-// 			Delta: int64(1),
-// 		},
-// 		{
-// 			ID:    "testGauge",
-// 			MType: "gauge",
-// 			Value: float64(2),
-// 		},
-// 	}
+	list := []models.MetricsWithValue{
+		{
+			ID:    "testCounter",
+			MType: "counter",
+			Delta: int64(1),
+		},
+		{
+			ID:    "testGauge",
+			MType: "gauge",
+			Value: float64(2),
+		},
+	}
 
-// 	sm.EXPECT().
-// 		GetList(gomock.Any()).
-// 		Return(list, nil)
+	sm.EXPECT().
+		GetList(gomock.Any()).
+		Return(list, nil)
 
-// 	testCases := []struct {
-// 		name         string
-// 		method       string
-// 		body         string
-// 		expectedCode int
-// 		expectedBody string
-// 	}{
-// 		{
-// 			name:         "method_get",
-// 			method:       http.MethodGet,
-// 			expectedCode: http.StatusOK,
-// 			expectedBody: "testCounter: 1\ntestGauge: 2",
-// 		},
-// 	}
+	testCases := []struct {
+		name         string
+		method       string
+		body         string
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			name:         "method_get",
+			method:       http.MethodGet,
+			expectedCode: http.StatusOK,
+			expectedBody: "testCounter: 1\ntestGauge: 2",
+		},
+	}
 
-// 	for _, tc := range testCases {
-// 		t.Run(tc.method, func(t *testing.T) {
-// 			req := resty.New().R()
-// 			req.Method = tc.method
-// 			req.URL = srv.URL
+	for _, tc := range testCases {
+		t.Run(tc.method, func(t *testing.T) {
+			req := resty.New().R()
+			req.Method = tc.method
+			req.URL = srv.URL
 
-// 			if len(tc.body) > 0 {
-// 				req.SetHeader("Content-Type", "application/json")
-// 				req.SetBody(tc.body)
-// 			}
+			if len(tc.body) > 0 {
+				req.SetHeader("Content-Type", "application/json")
+				req.SetBody(tc.body)
+			}
 
-// 			resp, err := req.Send()
-// 			assert.NoError(t, err, "error making HTTP request")
+			resp, err := req.Send()
+			assert.NoError(t, err, "error making HTTP request")
 
-// 			assert.Equal(t, tc.expectedCode, resp.StatusCode(), "Response code didn't match expected")
-// 			if tc.expectedBody != "" {
-// 				assert.Regexp(t, tc.expectedBody, string(resp.Body()))
-// 			}
-// 		})
-// 	}
-// }
+			assert.Equal(t, tc.expectedCode, resp.StatusCode(), "Response code didn't match expected")
+			if tc.expectedBody != "" {
+				assert.Regexp(t, tc.expectedBody, string(resp.Body()))
+			}
+		})
+	}
+}
 
 // func TestHandler_getValue(t *testing.T) {
 // 	ctrl := gomock.NewController(t)

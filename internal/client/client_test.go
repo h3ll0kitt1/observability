@@ -9,9 +9,30 @@ func TestMetrics_updateSpecificMemStats(t *testing.T) {
 	m := newMetrics()
 	m.updateSpecificMemStats()
 
-	want := 27
-	if got := len(m.mapMetrics); got != want {
-		t.Errorf("updateSpecificMemStats() = %v, want %v", got, want)
+	searched := []string{"Alloc", "BuckHashSys", "Frees", "GCCPUFraction", "GCSys", "HeapAlloc", "HeapIdle",
+		"HeapInuse", "HeapObjects", "HeapReleased", "HeapSys", "LastGC", "Lookups", "MCacheInuse", "MCacheSys",
+		"MSpanInuse", "MSpanSys", "Mallocs", "NextGC", "NumForcedGC", "NumGC", "OtherSys", "PauseTotalNs", "StackInuse",
+		"StackSys", "Sys", "TotalAlloc"}
+
+	want := true
+	for _, id := range searched {
+		if _, ok := m.mapMetrics.metrics[metricKey{id: id, mtype: "gauge"}]; ok != want {
+			t.Errorf("updateSpecificMemStats() = %v, want %v", ok, want)
+		}
+	}
+}
+
+func TestMetrics_updateMemoryCPUInfo(t *testing.T) {
+	m := newMetrics()
+	m.updateMemoryCPUInfo()
+
+	searched := []string{"Total", "Free", "UsedPercent"}
+
+	want := true
+	for _, id := range searched {
+		if _, ok := m.mapMetrics.metrics[metricKey{id: id, mtype: "gauge"}]; ok != want {
+			t.Errorf("updateSpecificMemStats() = %v, want %v", ok, want)
+		}
 	}
 }
 
@@ -22,7 +43,7 @@ func TestMetrics_updateRandomValue(t *testing.T) {
 
 	want := float64(81)
 	key := metricKey{id: "RandomValue", mtype: "gauge"}
-	if got := m.mapMetrics[key]; *got.Value != want {
+	if got := m.mapMetrics.metrics[key]; *got.Value != want {
 		t.Errorf("updateRandomValue() = %v, want %v", *got.Value, want)
 	}
 }
@@ -33,7 +54,7 @@ func TestMetrics_updateCounterValue(t *testing.T) {
 
 	want := int64(1)
 	key := metricKey{id: "PollCount", mtype: "counter"}
-	if got := m.mapMetrics[key]; *got.Delta != want {
+	if got := m.mapMetrics.metrics[key]; *got.Delta != want {
 		t.Errorf("updateCounterValue() = %v, want %v", *got.Delta, want)
 	}
 }
