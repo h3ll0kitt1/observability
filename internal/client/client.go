@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -37,7 +38,6 @@ type metricKey struct {
 
 type metrics struct {
 	mapMetrics *mapRW
-	arrMetrics []models.Metrics
 	pollCount  int64
 }
 
@@ -84,14 +84,15 @@ func newCustomClient(cfg *config.ClientConfig) customClient {
 func (m *metrics) sendToServerWithRate(client customClient, limit int) {
 
 	ch := make(chan models.Metrics, 256)
-	for _, metric := range m.arrMetrics {
-		ch <- metric
-	}
-	close(ch)
 
 	for i := 0; i < limit; i++ {
 		go client.sentToServerWorker(ch)
 	}
+
+	for _, metric := range m.mapMetrics.metrics {
+		ch <- metric
+	}
+	close(ch)
 }
 
 func (c customClient) sentToServerWorker(ch chan models.Metrics) {
@@ -136,10 +137,8 @@ func (c customClient) doRequestPOST(metric models.Metrics) error {
 
 func newMetrics() metrics {
 	mapMetrics := newMapRW()
-	arrMetrics := make([]models.Metrics, 0)
 	return metrics{
 		mapMetrics: mapMetrics,
-		arrMetrics: arrMetrics,
 		pollCount:  0}
 }
 
@@ -150,12 +149,10 @@ func newMapRW() *mapRW {
 }
 
 func (m *metrics) update(rng *rand.Rand) {
-	m.arrMetrics = m.arrMetrics[:0]
 	m.updateSpecificMemStats()
 	m.updateRandomValue(rng)
 	m.updateCounterValue()
 	go m.updateMemoryCPUInfo()
-
 }
 
 func (m *metrics) updateSpecificMemStats() {
@@ -215,7 +212,6 @@ func (m *metrics) updateSpecificMemStats() {
 		m.mapMetrics.RLock()
 		m.mapMetrics.metrics[key] = metric
 		m.mapMetrics.RUnlock()
-		m.arrMetrics = append(m.arrMetrics, metric)
 	}
 }
 
@@ -253,7 +249,6 @@ func (m *metrics) updateMemoryCPUInfo() {
 		m.mapMetrics.RLock()
 		m.mapMetrics.metrics[key] = metric
 		m.mapMetrics.RUnlock()
-		m.arrMetrics = append(m.arrMetrics, metric)
 	}
 }
 
@@ -290,11 +285,10 @@ func (m *metrics) updateRandomValue(rng *rand.Rand) {
 	m.mapMetrics.RLock()
 	m.mapMetrics.metrics[key] = metric
 	m.mapMetrics.RUnlock()
-	m.arrMetrics = append(m.arrMetrics, metric)
 }
 
 func (m *metrics) updateCounterValue() {
-	m.pollCount++
+	atomic.AddInt64(&m.pollCount, 1)
 
 	id, mtype := "PollCount", "counter"
 	value := m.pollCount
@@ -309,7 +303,6 @@ func (m *metrics) updateCounterValue() {
 	m.mapMetrics.RLock()
 	m.mapMetrics.metrics[key] = metric
 	m.mapMetrics.RUnlock()
-	m.arrMetrics = append(m.arrMetrics, metric)
 }
 
 func GzipCompress(data []byte) ([]byte, error) {
