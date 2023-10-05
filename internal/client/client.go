@@ -3,10 +3,13 @@ package client
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
 	"math/rand"
+	"os"
+	"os/signal"
 	"reflect"
 	"runtime"
 	"sync"
@@ -43,25 +46,32 @@ type metrics struct {
 
 type mapRW struct {
 	metrics map[metricKey]models.Metrics
-	sync.RWMutex
+	mu      sync.RWMutex
 }
 
 func Run(cfg *config.ClientConfig) {
 
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
 	pollTicker := time.NewTicker(cfg.PollInterval)
 	sendTicker := time.NewTicker(cfg.ReportInterval)
+	defer pollTicker.Stop()
+	defer sendTicker.Stop()
 
 	client := newCustomClient(cfg)
 	metrics := newMetrics()
 
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case <-pollTicker.C:
-			go metrics.update(rng)
+			go metrics.update(ctx, rng)
 		case <-sendTicker.C:
-			metrics.sendToServerWithRate(client, cfg.RateLimit)
+			metrics.sendToServerWithRate(ctx, client, cfg.RateLimit)
 		}
 	}
 }
@@ -81,12 +91,12 @@ func newCustomClient(cfg *config.ClientConfig) customClient {
 	}
 }
 
-func (m *metrics) sendToServerWithRate(client customClient, limit int) {
+func (m *metrics) sendToServerWithRate(ctx context.Context, client customClient, limit int) {
 
 	ch := make(chan models.Metrics, 256)
 
 	for i := 0; i < limit; i++ {
-		go client.sentToServerWorker(ch)
+		go client.sentToServerWorker(ctx, ch)
 	}
 
 	for _, metric := range m.mapMetrics.metrics {
@@ -95,21 +105,21 @@ func (m *metrics) sendToServerWithRate(client customClient, limit int) {
 	close(ch)
 }
 
-func (c customClient) sentToServerWorker(ch chan models.Metrics) {
+func (c customClient) sentToServerWorker(ctx context.Context, ch <-chan models.Metrics) {
 
 	for metric := range ch {
-		err := c.doRequestPOST(metric)
+		err := c.doRequestPOST(ctx, metric)
 		if err != nil {
 			log.Printf("%s\n", err)
 		}
 	}
 }
 
-func (c customClient) doRequestPOST(metric models.Metrics) error {
+func (c customClient) doRequestPOST(ctx context.Context, metric models.Metrics) error {
 
 	jsonData, err := json.Marshal(metric)
 	if err != nil {
-		return errors.New("error converting slice of metrics to json")
+		return errors.New("error converting metric to json")
 	}
 
 	if c.key != "" {
@@ -123,6 +133,7 @@ func (c customClient) doRequestPOST(metric models.Metrics) error {
 	}
 
 	_, err = c.httpClient.R().
+		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
 		SetHeader("Accept-Encoding", "gzip").
@@ -148,14 +159,14 @@ func newMapRW() *mapRW {
 	return &m
 }
 
-func (m *metrics) update(rng *rand.Rand) {
-	m.updateSpecificMemStats()
-	m.updateRandomValue(rng)
-	m.updateCounterValue()
-	go m.updateMemoryCPUInfo()
+func (m *metrics) update(ctx context.Context, rng *rand.Rand) {
+	m.updateSpecificMemStats(ctx)
+	m.updateRandomValue(ctx, rng)
+	m.updateCounterValue(ctx)
+	go m.updateMemoryCPUInfo(ctx)
 }
 
-func (m *metrics) updateSpecificMemStats() {
+func (m *metrics) updateSpecificMemStats(ctx context.Context) {
 
 	searchedFields := map[string]bool{
 		"Alloc":         true,
@@ -209,13 +220,13 @@ func (m *metrics) updateSpecificMemStats() {
 			Value: &value,
 		}
 
-		m.mapMetrics.RLock()
+		m.mapMetrics.mu.RLock()
 		m.mapMetrics.metrics[key] = metric
-		m.mapMetrics.RUnlock()
+		m.mapMetrics.mu.RUnlock()
 	}
 }
 
-func (m *metrics) updateMemoryCPUInfo() {
+func (m *metrics) updateMemoryCPUInfo(ctx context.Context) {
 
 	vmStat, err := mem.VirtualMemory()
 	if err != nil {
@@ -246,9 +257,9 @@ func (m *metrics) updateMemoryCPUInfo() {
 			Value: &value,
 		}
 
-		m.mapMetrics.RLock()
+		m.mapMetrics.mu.RLock()
 		m.mapMetrics.metrics[key] = metric
-		m.mapMetrics.RUnlock()
+		m.mapMetrics.mu.RUnlock()
 	}
 }
 
@@ -271,7 +282,7 @@ func getFloat64(value any) float64 {
 	}
 }
 
-func (m *metrics) updateRandomValue(rng *rand.Rand) {
+func (m *metrics) updateRandomValue(ctx context.Context, rng *rand.Rand) {
 	id, mtype := "RandomValue", "gauge"
 	value := float64(rng.Intn(100))
 
@@ -282,12 +293,12 @@ func (m *metrics) updateRandomValue(rng *rand.Rand) {
 		Value: &value,
 	}
 
-	m.mapMetrics.RLock()
+	m.mapMetrics.mu.RLock()
 	m.mapMetrics.metrics[key] = metric
-	m.mapMetrics.RUnlock()
+	m.mapMetrics.mu.RUnlock()
 }
 
-func (m *metrics) updateCounterValue() {
+func (m *metrics) updateCounterValue(ctx context.Context) {
 	atomic.AddInt64(&m.pollCount, 1)
 
 	id, mtype := "PollCount", "counter"
@@ -300,9 +311,9 @@ func (m *metrics) updateCounterValue() {
 		Delta: &value,
 	}
 
-	m.mapMetrics.RLock()
+	m.mapMetrics.mu.RLock()
 	m.mapMetrics.metrics[key] = metric
-	m.mapMetrics.RUnlock()
+	m.mapMetrics.mu.RUnlock()
 }
 
 func GzipCompress(data []byte) ([]byte, error) {
