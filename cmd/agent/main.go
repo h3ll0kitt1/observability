@@ -7,5 +7,6 @@ import (
 
 func main() {
 	cfg := config.NewClientConfig()
+	cfg.Parse()
 	client.Run(cfg)
 }

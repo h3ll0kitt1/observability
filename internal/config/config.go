@@ -30,7 +30,11 @@ type ServerConfig struct {
 }
 
 func NewClientConfig() *ClientConfig {
+	var cc ClientConfig
+	return &cc
+}
 
+func (cc *ClientConfig) Parse() {
 	var (
 		flagReportInterval int
 		flagPollInterval   int
@@ -86,22 +90,24 @@ func NewClientConfig() *ClientConfig {
 	retryWaitTime := 3 * time.Second
 	retryMaxWaitTime := 90 * time.Second
 
-	return &ClientConfig{
-		Protocol:         protocol,
-		Addr:             addr,
-		Endpoint:         endpoint,
-		Key:              key,
-		ReportInterval:   reportInterval,
-		PollInterval:     pollInterval,
-		RateLimit:        rateLimit,
-		RetryCount:       retryCount,
-		RetryWaitTime:    retryWaitTime,
-		RetryMaxWaitTime: retryMaxWaitTime,
-	}
+	cc.Protocol = protocol
+	cc.Addr = addr
+	cc.Endpoint = endpoint
+	cc.Key = key
+	cc.ReportInterval = reportInterval
+	cc.PollInterval = pollInterval
+	cc.RateLimit = rateLimit
+	cc.RetryCount = retryCount
+	cc.RetryWaitTime = retryWaitTime
+	cc.RetryMaxWaitTime = retryMaxWaitTime
 }
 
 func NewServerConfig() *ServerConfig {
+	var sc ServerConfig
+	return &sc
+}
 
+func (sc *ServerConfig) Parse() {
 	var (
 		flagRunAddr         string
 		flagFileStoragePath string
@@ -152,12 +158,10 @@ func NewServerConfig() *ServerConfig {
 	database := flagDatabasePath
 	key := flagKey
 
-	return &ServerConfig{
-		Addr:            addr,
-		StoreInterval:   storeInterval,
-		FileStoragePath: file,
-		Restore:         restore,
-		Database:        database,
-		Key:             key,
-	}
+	sc.Addr = addr
+	sc.StoreInterval = storeInterval
+	sc.FileStoragePath = file
+	sc.Restore = restore
+	sc.Database = database
+	sc.Key = key
 }

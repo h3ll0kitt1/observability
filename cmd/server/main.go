@@ -23,6 +23,7 @@ type application struct {
 func main() {
 
 	cfg := config.NewServerConfig()
+	cfg.Parse()
 
 	sm := controller.NewStorageManager(cfg)
 	sm.SetRetryCount(3)
