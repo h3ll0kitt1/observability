@@ -1,13 +1,14 @@
 package client
 
 import (
+	"context"
 	"math/rand"
 	"testing"
 )
 
 func TestMetrics_updateSpecificMemStats(t *testing.T) {
 	m := newMetrics()
-	m.updateSpecificMemStats()
+	m.updateSpecificMemStats(context.Background())
 
 	searched := []string{"Alloc", "BuckHashSys", "Frees", "GCCPUFraction", "GCSys", "HeapAlloc", "HeapIdle",
 		"HeapInuse", "HeapObjects", "HeapReleased", "HeapSys", "LastGC", "Lookups", "MCacheInuse", "MCacheSys",
@@ -24,7 +25,7 @@ func TestMetrics_updateSpecificMemStats(t *testing.T) {
 
 func TestMetrics_updateMemoryCPUInfo(t *testing.T) {
 	m := newMetrics()
-	m.updateMemoryCPUInfo()
+	m.updateMemoryCPUInfo(context.Background())
 
 	searched := []string{"Total", "Free", "UsedPercent"}
 
@@ -39,7 +40,7 @@ func TestMetrics_updateMemoryCPUInfo(t *testing.T) {
 func TestMetrics_updateRandomValue(t *testing.T) {
 	rng := rand.New(rand.NewSource(1))
 	m := newMetrics()
-	m.updateRandomValue(rng)
+	m.updateRandomValue(context.Background(), rng)
 
 	want := float64(81)
 	key := metricKey{id: "RandomValue", mtype: "gauge"}
@@ -50,7 +51,7 @@ func TestMetrics_updateRandomValue(t *testing.T) {
 
 func TestMetrics_updateCounterValue(t *testing.T) {
 	m := newMetrics()
-	m.updateCounterValue()
+	m.updateCounterValue(context.Background())
 
 	want := int64(1)
 	key := metricKey{id: "PollCount", mtype: "counter"}
