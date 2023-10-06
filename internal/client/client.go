@@ -302,7 +302,7 @@ func (m *metrics) updateCounterValue(ctx context.Context) {
 	atomic.AddInt64(&m.pollCount, 1)
 
 	id, mtype := "PollCount", "counter"
-	value := m.pollCount
+	value := atomic.LoadInt64(&m.pollCount)
 
 	key := metricKey{id: id, mtype: mtype}
 	metric := models.Metrics{
