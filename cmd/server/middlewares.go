@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/h3ll0kitt1/observability/internal/hash"
 )
 
 type (
@@ -151,4 +153,51 @@ func (app *application) gzipper(next http.Handler) http.Handler {
 
 		next.ServeHTTP(ow, r)
 	})
+}
+
+func (app *application) requestVerifier(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		recievedHash := r.Header.Get("HashSHA256")
+
+		if app.config.Key != "" && recievedHash != "" {
+			ok, err := app.verifySignature(r.Body, recievedHash)
+
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			if !ok {
+
+				app.logger.Infow("info",
+					"wrong hash signature", recievedHash,
+				)
+
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (app *application) verifySignature(body io.ReadCloser, idealHash string) (bool, error) {
+
+	b, err := io.ReadAll(body)
+	if err != nil {
+		return false, err
+	}
+
+	computedHash := hash.ComputeSHA256(b, app.config.Key)
+
+	app.logger.Infow("compare hashes",
+		"computed", computedHash,
+		"mustbe", idealHash,
+	)
+
+	if computedHash != idealHash {
+		return false, nil
+	}
+	return true, nil
 }

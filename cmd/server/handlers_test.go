@@ -1,21 +1,16 @@
 package main
 
 import (
-	//"context"
-	// "io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	// "time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-resty/resty/v2"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-	//	"github.com/stretchr/testify/require"
 
-	//"github.com/h3ll0kitt1/observability/internal/config"
-	//"github.com/h3ll0kitt1/observability/internal/controller"
+	"github.com/h3ll0kitt1/observability/internal/config"
 	"github.com/h3ll0kitt1/observability/internal/logger"
 	"github.com/h3ll0kitt1/observability/internal/mocks"
 	"github.com/h3ll0kitt1/observability/internal/models"
@@ -29,12 +24,14 @@ func TestHandler_getList(t *testing.T) {
 	sm := mocks.NewMockStorageManager(ctrl)
 
 	r := chi.NewRouter()
+	c := config.NewServerConfig()
 	l := logger.NewLogger()
 
 	app := &application{
 		storageManager: sm,
 		router:         r,
 		logger:         l,
+		config:         c,
 	}
 	app.setRouters()
 
@@ -104,11 +101,13 @@ func TestHandler_getValue(t *testing.T) {
 
 	r := chi.NewRouter()
 	l := logger.NewLogger()
+	c := config.NewServerConfig()
 
 	app := &application{
 		storageManager: sm,
 		router:         r,
 		logger:         l,
+		config:         c,
 	}
 	app.setRouters()
 
@@ -182,12 +181,14 @@ func TestHandler_getCounter(t *testing.T) {
 	sm := mocks.NewMockStorageManager(ctrl)
 
 	r := chi.NewRouter()
+	c := config.NewServerConfig()
 	l := logger.NewLogger()
 
 	app := &application{
 		storageManager: sm,
 		router:         r,
 		logger:         l,
+		config:         c,
 	}
 	app.setRouters()
 
@@ -249,12 +250,14 @@ func TestHandler_getGauge(t *testing.T) {
 	sm := mocks.NewMockStorageManager(ctrl)
 
 	r := chi.NewRouter()
+	c := config.NewServerConfig()
 	l := logger.NewLogger()
 
 	app := &application{
 		storageManager: sm,
 		router:         r,
 		logger:         l,
+		config:         c,
 	}
 	app.setRouters()
 
@@ -381,12 +384,14 @@ func TestHandler_updateValue(t *testing.T) {
 	sm := mocks.NewMockStorageManager(ctrl)
 
 	r := chi.NewRouter()
+	c := config.NewServerConfig()
 	l := logger.NewLogger()
 
 	app := &application{
 		storageManager: sm,
 		router:         r,
 		logger:         l,
+		config:         c,
 	}
 	app.setRouters()
 
@@ -434,5 +439,4 @@ func TestHandler_updateValue(t *testing.T) {
 			}
 		})
 	}
-
 }

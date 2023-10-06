@@ -3,17 +3,24 @@ package client
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
 	"math/rand"
+	"os"
+	"os/signal"
 	"reflect"
 	"runtime"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/shirou/gopsutil/mem"
 
 	"github.com/h3ll0kitt1/observability/internal/config"
+	"github.com/h3ll0kitt1/observability/internal/hash"
 	"github.com/h3ll0kitt1/observability/internal/models"
 )
 
@@ -24,6 +31,7 @@ var (
 type customClient struct {
 	httpClient *resty.Client
 	endpoint   string
+	key        string
 }
 
 type metricKey struct {
@@ -32,27 +40,38 @@ type metricKey struct {
 }
 
 type metrics struct {
-	mapMetrics map[metricKey]models.Metrics
-	arrMetrics []models.Metrics
+	mapMetrics *mapRW
 	pollCount  int64
+}
+
+type mapRW struct {
+	metrics map[metricKey]models.Metrics
+	mu      sync.RWMutex
 }
 
 func Run(cfg *config.ClientConfig) {
 
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
 	pollTicker := time.NewTicker(cfg.PollInterval)
 	sendTicker := time.NewTicker(cfg.ReportInterval)
+	defer pollTicker.Stop()
+	defer sendTicker.Stop()
 
 	client := newCustomClient(cfg)
 	metrics := newMetrics()
 
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case <-pollTicker.C:
-			metrics.update(rng)
+			go metrics.update(ctx, rng)
 		case <-sendTicker.C:
-			metrics.sendToServer(client)
+			metrics.sendToServerWithRate(ctx, client, cfg.RateLimit)
 		}
 	}
 }
@@ -65,23 +84,47 @@ func newCustomClient(cfg *config.ClientConfig) customClient {
 		SetRetryWaitTime(cfg.RetryWaitTime).
 		SetRetryMaxWaitTime(cfg.RetryMaxWaitTime)
 
-	return customClient{httpClient: httpClient, endpoint: cfg.Endpoint}
+	return customClient{
+		httpClient: httpClient,
+		endpoint:   cfg.Endpoint,
+		key:        cfg.Key,
+	}
 }
 
-func (m *metrics) sendToServer(client customClient) {
-	if len(m.arrMetrics) != 0 {
-		err := client.doRequestPOST(m.arrMetrics)
+func (m *metrics) sendToServerWithRate(ctx context.Context, client customClient, limit int) {
+
+	ch := make(chan models.Metrics, 256)
+
+	for i := 0; i < limit; i++ {
+		go client.sentToServerWorker(ctx, ch)
+	}
+
+	for _, metric := range m.mapMetrics.metrics {
+		ch <- metric
+	}
+	close(ch)
+}
+
+func (c customClient) sentToServerWorker(ctx context.Context, ch <-chan models.Metrics) {
+
+	for metric := range ch {
+		err := c.doRequestPOST(ctx, metric)
 		if err != nil {
 			log.Printf("%s\n", err)
 		}
 	}
 }
 
-func (c customClient) doRequestPOST(metrics []models.Metrics) error {
+func (c customClient) doRequestPOST(ctx context.Context, metric models.Metrics) error {
 
-	jsonData, err := json.Marshal(metrics)
+	jsonData, err := json.Marshal(metric)
 	if err != nil {
-		return errors.New("error converting slice of metrics to json")
+		return errors.New("error converting metric to json")
+	}
+
+	if c.key != "" {
+		hash := hash.ComputeSHA256(jsonData, c.key)
+		c.httpClient.R().SetHeader("HashSHA256", hash)
 	}
 
 	gzipData, err := GzipCompress(jsonData)
@@ -90,11 +133,12 @@ func (c customClient) doRequestPOST(metrics []models.Metrics) error {
 	}
 
 	_, err = c.httpClient.R().
+		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
 		SetHeader("Accept-Encoding", "gzip").
 		SetBody(gzipData).
-		Post(c.endpoint + "/updates/")
+		Post(c.endpoint + "/update/")
 
 	if err != nil {
 		return ErrServerUnavailable
@@ -103,22 +147,26 @@ func (c customClient) doRequestPOST(metrics []models.Metrics) error {
 }
 
 func newMetrics() metrics {
-	mapMetrics := make(map[metricKey]models.Metrics)
-	arrMetrics := make([]models.Metrics, 0)
+	mapMetrics := newMapRW()
 	return metrics{
 		mapMetrics: mapMetrics,
-		arrMetrics: arrMetrics,
 		pollCount:  0}
 }
 
-func (m *metrics) update(rng *rand.Rand) {
-	m.arrMetrics = m.arrMetrics[:0]
-	m.updateSpecificMemStats()
-	m.updateRandomValue(rng)
-	m.updateCounterValue()
+func newMapRW() *mapRW {
+	var m mapRW
+	m.metrics = make(map[metricKey]models.Metrics)
+	return &m
 }
 
-func (m *metrics) updateSpecificMemStats() {
+func (m *metrics) update(ctx context.Context, rng *rand.Rand) {
+	m.updateSpecificMemStats(ctx)
+	m.updateRandomValue(ctx, rng)
+	m.updateCounterValue(ctx)
+	go m.updateMemoryCPUInfo(ctx)
+}
+
+func (m *metrics) updateSpecificMemStats(ctx context.Context) {
 
 	searchedFields := map[string]bool{
 		"Alloc":         true,
@@ -172,8 +220,46 @@ func (m *metrics) updateSpecificMemStats() {
 			Value: &value,
 		}
 
-		m.mapMetrics[key] = metric
-		m.arrMetrics = append(m.arrMetrics, metric)
+		m.mapMetrics.mu.RLock()
+		m.mapMetrics.metrics[key] = metric
+		m.mapMetrics.mu.RUnlock()
+	}
+}
+
+func (m *metrics) updateMemoryCPUInfo(ctx context.Context) {
+
+	vmStat, err := mem.VirtualMemory()
+	if err != nil {
+		log.Printf("%s\n", err)
+	}
+
+	searchedFields := map[string]bool{
+		"Total":       true,
+		"Free":        true,
+		"UsedPercent": true,
+	}
+
+	v := reflect.ValueOf(vmStat).Elem()
+
+	for i := 0; i < v.NumField(); i++ {
+		id := v.Type().Field(i).Name
+		if _, ok := searchedFields[id]; !ok {
+			continue
+		}
+
+		mtype := "gauge"
+		value := getFloat64(v.Field(i).Interface())
+
+		key := metricKey{id: id, mtype: mtype}
+		metric := models.Metrics{
+			ID:    id,
+			MType: mtype,
+			Value: &value,
+		}
+
+		m.mapMetrics.mu.RLock()
+		m.mapMetrics.metrics[key] = metric
+		m.mapMetrics.mu.RUnlock()
 	}
 }
 
@@ -196,7 +282,7 @@ func getFloat64(value any) float64 {
 	}
 }
 
-func (m *metrics) updateRandomValue(rng *rand.Rand) {
+func (m *metrics) updateRandomValue(ctx context.Context, rng *rand.Rand) {
 	id, mtype := "RandomValue", "gauge"
 	value := float64(rng.Intn(100))
 
@@ -207,15 +293,16 @@ func (m *metrics) updateRandomValue(rng *rand.Rand) {
 		Value: &value,
 	}
 
-	m.mapMetrics[key] = metric
-	m.arrMetrics = append(m.arrMetrics, metric)
+	m.mapMetrics.mu.RLock()
+	m.mapMetrics.metrics[key] = metric
+	m.mapMetrics.mu.RUnlock()
 }
 
-func (m *metrics) updateCounterValue() {
-	m.pollCount++
+func (m *metrics) updateCounterValue(ctx context.Context) {
+	atomic.AddInt64(&m.pollCount, 1)
 
 	id, mtype := "PollCount", "counter"
-	value := m.pollCount
+	value := atomic.LoadInt64(&m.pollCount)
 
 	key := metricKey{id: id, mtype: mtype}
 	metric := models.Metrics{
@@ -224,8 +311,9 @@ func (m *metrics) updateCounterValue() {
 		Delta: &value,
 	}
 
-	m.mapMetrics[key] = metric
-	m.arrMetrics = append(m.arrMetrics, metric)
+	m.mapMetrics.mu.RLock()
+	m.mapMetrics.metrics[key] = metric
+	m.mapMetrics.mu.RUnlock()
 }
 
 func GzipCompress(data []byte) ([]byte, error) {

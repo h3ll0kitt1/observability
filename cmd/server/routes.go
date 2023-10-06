@@ -8,6 +8,7 @@ func (app *application) setRouters() {
 
 	app.router.Use(app.requestLogger)
 	app.router.Use(app.gzipper)
+	app.router.Use(app.requestVerifier)
 
 	app.router.Route("/", func(r chi.Router) {
 		app.router.Get("/", app.getList)
